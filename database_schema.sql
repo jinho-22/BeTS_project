@@ -108,7 +108,7 @@ CREATE TABLE `work_log` (
   `project_id` INT NOT NULL COMMENT '프로젝트 ID',
   `work_start` DATETIME NOT NULL COMMENT '작업시작일시',
   `work_end` DATETIME NOT NULL COMMENT '작업종료일시',
-  `work_type` VARCHAR(50) NOT NULL COMMENT '작업 유형(정기점검, 장애지원, 기술지원 등)',
+  `work_type` VARCHAR(50) NOT NULL COMMENT '작업 유형(정기점검, 장애지원, 기술지원, 기타)',
   `supprt_type` VARCHAR(50) NOT NULL COMMENT '지원 구분 (원격, 방문, 가이드 등)',
   `service_type` VARCHAR(50) NOT NULL COMMENT '서비스 유형 (DB, WEB/WAS 등)',
   `product_type` VARCHAR(50) NOT NULL COMMENT '제품명(Oracle, Tibero, Jeus 등)',

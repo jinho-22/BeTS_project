@@ -6,7 +6,7 @@ const {
 } = require('../../models');
 
 // 장애 관련 작업 유형
-const INCIDENT_WORK_TYPES = ['장애지원', '장애처리', '장애대응'];
+const INCIDENT_WORK_TYPES = ['장애지원'];
 
 // 상태 전이 규칙
 const STATUS_TRANSITIONS = {
@@ -351,9 +351,8 @@ class WorkService {
         SUM(CASE WHEN status = '관리자확인' THEN 1 ELSE 0 END) as status_checked,
         SUM(CASE WHEN status = '승인완료' THEN 1 ELSE 0 END) as status_approved,
         SUM(CASE WHEN work_type = '정기점검' THEN 1 ELSE 0 END) as type_regular,
-        SUM(CASE WHEN work_type IN ('장애지원','장애처리','장애대응') THEN 1 ELSE 0 END) as type_incident,
+        SUM(CASE WHEN work_type = '장애지원' THEN 1 ELSE 0 END) as type_incident,
         SUM(CASE WHEN work_type = '기술지원' THEN 1 ELSE 0 END) as type_tech,
-        SUM(CASE WHEN work_type = '교육' THEN 1 ELSE 0 END) as type_training,
         SUM(CASE WHEN work_type = '기타' THEN 1 ELSE 0 END) as type_etc
       FROM work_log w
       WHERE 1=1 ${dateCondition}
@@ -372,9 +371,8 @@ class WorkService {
         d.dept_name,
         COUNT(*) as total,
         SUM(CASE WHEN w.work_type = '정기점검' THEN 1 ELSE 0 END) as regular_check,
-        SUM(CASE WHEN w.work_type IN ('장애지원','장애처리','장애대응') THEN 1 ELSE 0 END) as incident_support,
+        SUM(CASE WHEN w.work_type = '장애지원' THEN 1 ELSE 0 END) as incident_support,
         SUM(CASE WHEN w.work_type = '기술지원' THEN 1 ELSE 0 END) as tech_support,
-        SUM(CASE WHEN w.work_type = '교육' THEN 1 ELSE 0 END) as training,
         SUM(CASE WHEN w.work_type = '기타' THEN 1 ELSE 0 END) as etc_work,
         ROUND(SUM(TIMESTAMPDIFF(MINUTE, w.work_start, w.work_end)) / 60, 1) as total_hours
       FROM work_log w
@@ -396,9 +394,8 @@ class WorkService {
         COUNT(*) as total,
         COUNT(DISTINCT w.user_id) as engineer_count,
         SUM(CASE WHEN w.work_type = '정기점검' THEN 1 ELSE 0 END) as regular_check,
-        SUM(CASE WHEN w.work_type IN ('장애지원','장애처리','장애대응') THEN 1 ELSE 0 END) as incident_support,
+        SUM(CASE WHEN w.work_type = '장애지원' THEN 1 ELSE 0 END) as incident_support,
         SUM(CASE WHEN w.work_type = '기술지원' THEN 1 ELSE 0 END) as tech_support,
-        SUM(CASE WHEN w.work_type = '교육' THEN 1 ELSE 0 END) as training,
         SUM(CASE WHEN w.work_type = '기타' THEN 1 ELSE 0 END) as etc_work,
         ROUND(SUM(TIMESTAMPDIFF(MINUTE, w.work_start, w.work_end)) / 60, 1) as total_hours
       FROM work_log w
@@ -419,9 +416,8 @@ class WorkService {
         c.client_id, c.client_name,
         COUNT(*) as total,
         SUM(CASE WHEN w.work_type = '정기점검' THEN 1 ELSE 0 END) as regular_check,
-        SUM(CASE WHEN w.work_type IN ('장애지원','장애처리','장애대응') THEN 1 ELSE 0 END) as incident_support,
+        SUM(CASE WHEN w.work_type = '장애지원' THEN 1 ELSE 0 END) as incident_support,
         SUM(CASE WHEN w.work_type = '기술지원' THEN 1 ELSE 0 END) as tech_support,
-        SUM(CASE WHEN w.work_type = '교육' THEN 1 ELSE 0 END) as training,
         SUM(CASE WHEN w.work_type = '기타' THEN 1 ELSE 0 END) as etc_work,
         ROUND(SUM(TIMESTAMPDIFF(MINUTE, w.work_start, w.work_end)) / 60, 1) as total_hours
       FROM work_log w
@@ -473,7 +469,7 @@ class WorkService {
         DATE_FORMAT(w.work_start, '%Y-%m') as month,
         COUNT(*) as total,
         SUM(CASE WHEN w.work_type = '정기점검' THEN 1 ELSE 0 END) as regular_check,
-        SUM(CASE WHEN w.work_type IN ('장애지원','장애처리','장애대응') THEN 1 ELSE 0 END) as incident_support,
+        SUM(CASE WHEN w.work_type = '장애지원' THEN 1 ELSE 0 END) as incident_support,
         SUM(CASE WHEN w.work_type = '기술지원' THEN 1 ELSE 0 END) as tech_support
       FROM work_log w
       WHERE w.work_start >= DATE_SUB(NOW(), INTERVAL 6 MONTH)

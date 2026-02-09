@@ -5,9 +5,9 @@ import Header from '../components/layout/Header';
 import DateTimePicker from '../components/common/DateTimePicker';
 import api from '../lib/axios';
 
-const WORK_TYPES = ['정기점검', '장애지원', '장애처리', '장애대응', '기술지원', '교육', '기타'];
+const WORK_TYPES = ['정기점검', '장애지원', '기술지원', '기타'];
 const SUPPORT_TYPES = ['원격', '방문', '가이드', '전화', '기타'];
-const INCIDENT_WORK_TYPES = ['장애지원', '장애처리', '장애대응'];
+const INCIDENT_WORK_TYPES = ['장애지원'];
 
 function toLocalDatetime(dateStr) {
   if (!dateStr) return '';

@@ -135,7 +135,6 @@ function OverviewTab({ stats }) {
     { label: '정기점검', value: overview.type_regular, icon: '🔧', color: 'green' },
     { label: '장애지원', value: overview.type_incident, icon: '🚨', color: 'red' },
     { label: '기술지원', value: overview.type_tech, icon: '💡', color: 'purple' },
-    { label: '교육', value: overview.type_training, icon: '📚', color: 'orange' },
     { label: '기타', value: overview.type_etc, icon: '📌', color: 'gray' },
   ];
 
@@ -150,7 +149,7 @@ function OverviewTab({ stats }) {
   return (
     <div className="space-y-6">
       {/* 작업 유형별 요약 카드 */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
         {summaryCards.map(card => (
           <SummaryCard key={card.label} {...card} />
         ))}
@@ -186,7 +185,6 @@ function OverviewTab({ stats }) {
                 { label: '정기점검', value: overview.type_regular, color: 'bg-green-500' },
                 { label: '장애지원', value: overview.type_incident, color: 'bg-red-500' },
                 { label: '기술지원', value: overview.type_tech, color: 'bg-purple-500' },
-                { label: '교육', value: overview.type_training, color: 'bg-orange-500' },
                 { label: '기타', value: overview.type_etc, color: 'bg-gray-400' },
               ].filter(i => i.value > 0).map(item => (
                 <div key={item.label} className="flex items-center gap-3">
@@ -286,7 +284,6 @@ function EngineerTab({ data }) {
               <th className="text-center py-3 px-3 font-semibold text-green-600">정기점검</th>
               <th className="text-center py-3 px-3 font-semibold text-red-600">장애지원</th>
               <th className="text-center py-3 px-3 font-semibold text-purple-600">기술지원</th>
-              <th className="text-center py-3 px-3 font-semibold text-orange-600">교육</th>
               <th className="text-center py-3 px-3 font-semibold text-gray-500">기타</th>
               <th className="text-center py-3 px-3 font-semibold text-gray-600">투입시간</th>
               <th className="text-left py-3 px-4 font-semibold text-gray-600 w-40">비율</th>
@@ -301,7 +298,6 @@ function EngineerTab({ data }) {
                 <td className="py-3 px-3 text-center"><CountBadge value={eng.regular_check} color="green" /></td>
                 <td className="py-3 px-3 text-center"><CountBadge value={eng.incident_support} color="red" /></td>
                 <td className="py-3 px-3 text-center"><CountBadge value={eng.tech_support} color="purple" /></td>
-                <td className="py-3 px-3 text-center"><CountBadge value={eng.training} color="orange" /></td>
                 <td className="py-3 px-3 text-center"><CountBadge value={eng.etc_work} color="gray" /></td>
                 <td className="py-3 px-3 text-center text-gray-600">{eng.total_hours}h</td>
                 <td className="py-3 px-4">
@@ -310,7 +306,6 @@ function EngineerTab({ data }) {
                       { value: eng.regular_check, color: 'bg-green-500' },
                       { value: eng.incident_support, color: 'bg-red-500' },
                       { value: eng.tech_support, color: 'bg-purple-500' },
-                      { value: eng.training, color: 'bg-orange-500' },
                       { value: eng.etc_work, color: 'bg-gray-400' },
                     ]}
                     total={eng.total}
@@ -362,7 +357,7 @@ function DepartmentTab({ data }) {
             </div>
             <div className="text-xs text-gray-500 flex justify-between">
               <span>기술지원 {dept.tech_support}건</span>
-              <span>교육 {dept.training}건</span>
+              <span>기타 {dept.etc_work}건</span>
               <span>{dept.total_hours}시간</span>
             </div>
             {/* 1인당 평균 */}
@@ -390,7 +385,7 @@ function DepartmentTab({ data }) {
               <th className="text-center py-3 px-3 font-semibold text-green-600">정기점검</th>
               <th className="text-center py-3 px-3 font-semibold text-red-600">장애지원</th>
               <th className="text-center py-3 px-3 font-semibold text-purple-600">기술지원</th>
-              <th className="text-center py-3 px-3 font-semibold text-orange-600">교육</th>
+              <th className="text-center py-3 px-3 font-semibold text-gray-500">기타</th>
               <th className="text-center py-3 px-3 font-semibold text-gray-600">투입시간</th>
               <th className="text-center py-3 px-3 font-semibold text-gray-600">1인 평균</th>
               <th className="text-left py-3 px-4 font-semibold text-gray-600 w-40">비율</th>
@@ -405,7 +400,7 @@ function DepartmentTab({ data }) {
                 <td className="py-3 px-3 text-center"><CountBadge value={dept.regular_check} color="green" /></td>
                 <td className="py-3 px-3 text-center"><CountBadge value={dept.incident_support} color="red" /></td>
                 <td className="py-3 px-3 text-center"><CountBadge value={dept.tech_support} color="purple" /></td>
-                <td className="py-3 px-3 text-center"><CountBadge value={dept.training} color="orange" /></td>
+                <td className="py-3 px-3 text-center"><CountBadge value={dept.etc_work} color="gray" /></td>
                 <td className="py-3 px-3 text-center text-gray-600">{dept.total_hours}h</td>
                 <td className="py-3 px-3 text-center text-gray-600">
                   {dept.engineer_count > 0 ? Math.round(dept.total / dept.engineer_count * 10) / 10 : '-'}
@@ -416,7 +411,6 @@ function DepartmentTab({ data }) {
                       { value: dept.regular_check, color: 'bg-green-500' },
                       { value: dept.incident_support, color: 'bg-red-500' },
                       { value: dept.tech_support, color: 'bg-purple-500' },
-                      { value: dept.training, color: 'bg-orange-500' },
                       { value: dept.etc_work, color: 'bg-gray-400' },
                     ]}
                     total={dept.total}
@@ -466,7 +460,6 @@ function ClientTab({ data }) {
               <th className="text-center py-3 px-3 font-semibold text-green-600">정기점검</th>
               <th className="text-center py-3 px-3 font-semibold text-red-600">장애지원</th>
               <th className="text-center py-3 px-3 font-semibold text-purple-600">기술지원</th>
-              <th className="text-center py-3 px-3 font-semibold text-orange-600">교육</th>
               <th className="text-center py-3 px-3 font-semibold text-gray-500">기타</th>
               <th className="text-center py-3 px-3 font-semibold text-gray-600">투입시간</th>
               <th className="text-left py-3 px-4 font-semibold text-gray-600 w-40">비율</th>
@@ -480,7 +473,6 @@ function ClientTab({ data }) {
                 <td className="py-3 px-3 text-center"><CountBadge value={client.regular_check} color="green" /></td>
                 <td className="py-3 px-3 text-center"><CountBadge value={client.incident_support} color="red" /></td>
                 <td className="py-3 px-3 text-center"><CountBadge value={client.tech_support} color="purple" /></td>
-                <td className="py-3 px-3 text-center"><CountBadge value={client.training} color="orange" /></td>
                 <td className="py-3 px-3 text-center"><CountBadge value={client.etc_work} color="gray" /></td>
                 <td className="py-3 px-3 text-center text-gray-600">{client.total_hours}h</td>
                 <td className="py-3 px-4">
@@ -489,7 +481,6 @@ function ClientTab({ data }) {
                       { value: client.regular_check, color: 'bg-green-500' },
                       { value: client.incident_support, color: 'bg-red-500' },
                       { value: client.tech_support, color: 'bg-purple-500' },
-                      { value: client.training, color: 'bg-orange-500' },
                       { value: client.etc_work, color: 'bg-gray-400' },
                     ]}
                     total={client.total}

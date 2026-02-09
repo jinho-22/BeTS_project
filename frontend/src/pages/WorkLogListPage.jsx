@@ -66,9 +66,8 @@ export default function WorkLogListPage() {
             <option value="">작업 유형 전체</option>
             <option value="정기점검">정기점검</option>
             <option value="장애지원">장애지원</option>
-            <option value="장애처리">장애처리</option>
             <option value="기술지원">기술지원</option>
-            <option value="교육">교육</option>
+            <option value="기타">기타</option>
           </select>
           <select
             className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
