@@ -23,10 +23,10 @@ export default function WorkLogDetailPage() {
       const { data } = await api.patch(`/work/${id}/status`, { status: newStatus });
       return data;
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['workLog', id] });
-      await queryClient.invalidateQueries({ queryKey: ['workLogs'] });
-      await queryClient.invalidateQueries({ queryKey: ['statistics'] });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workLog', id] });
+      queryClient.invalidateQueries({ queryKey: ['workLogs'] });
+      queryClient.invalidateQueries({ queryKey: ['statistics'] });
     },
   });
 
@@ -34,9 +34,9 @@ export default function WorkLogDetailPage() {
     mutationFn: async () => {
       await api.delete(`/work/${id}`);
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['workLogs'] });
-      await queryClient.invalidateQueries({ queryKey: ['statistics'] });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workLogs'] });
+      queryClient.invalidateQueries({ queryKey: ['statistics'] });
       navigate('/work');
     },
   });

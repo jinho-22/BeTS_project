@@ -19,11 +19,11 @@ export default function ProjectListPage() {
   const [projectForm, setProjectForm] = useState({ client_id: '', dept_id: '', project_name: '', contract_period: '' });
   const [contactForm, setContactForm] = useState({ project_id: '', name: '', email: '', phone: '' });
 
-  const { data, isLoading } = useQuery({
+  const { data: projects, isLoading } = useQuery({
     queryKey: ['projects'],
     queryFn: async () => {
       const { data } = await api.get('/projects', { params: { limit: 200 } });
-      return data;
+      return data.data; // 배열만 반환 (다른 페이지와 동일한 형식)
     },
   });
 
@@ -155,7 +155,7 @@ export default function ProjectListPage() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           {isLoading ? (
             <div className="text-center py-12 text-gray-500">로딩 중...</div>
-          ) : data?.data?.length > 0 ? (
+          ) : projects?.length > 0 ? (
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50">
@@ -169,7 +169,7 @@ export default function ProjectListPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {data.data.map((project) => {
+                {projects.map((project) => {
                   const isExpanded = expandedProjectId === project.project_id;
                   const contacts = project.contacts || [];
                   return (

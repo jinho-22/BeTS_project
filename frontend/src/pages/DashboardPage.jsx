@@ -23,6 +23,8 @@ export default function DashboardPage() {
       const { data } = await api.get('/work/statistics');
       return data.data;
     },
+    enabled: isManager, // admin/manager만 통계 API 호출
+    retry: false,       // 권한 에러 시 재시도 방지
   });
 
   // 상태별 건수 계산

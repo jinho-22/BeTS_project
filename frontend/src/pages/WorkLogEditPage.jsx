@@ -92,10 +92,11 @@ export default function WorkLogEditPage() {
       const { data } = await api.put(`/work/${id}`, payload);
       return data;
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['workLog', id] });
-      await queryClient.invalidateQueries({ queryKey: ['workLogs'] });
-      await queryClient.invalidateQueries({ queryKey: ['statistics'] });
+    onSuccess: () => {
+      // await 없이 비동기로 캐시 무효화 (blocking 방지)
+      queryClient.invalidateQueries({ queryKey: ['workLog', id] });
+      queryClient.invalidateQueries({ queryKey: ['workLogs'] });
+      queryClient.invalidateQueries({ queryKey: ['statistics'] });
       navigate(`/work/${id}`);
     },
     onError: (err) => {
