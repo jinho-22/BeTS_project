@@ -20,7 +20,8 @@ const queryClient = new QueryClient({
     queries: {
       retry: 1,
       refetchOnWindowFocus: false,
-      staleTime: 0, // 항상 최신 데이터 요청
+      staleTime: 0,            // 항상 최신 데이터로 간주
+      refetchOnMount: 'always', // 컴포넌트 마운트 시 항상 재요청
     },
   },
 });

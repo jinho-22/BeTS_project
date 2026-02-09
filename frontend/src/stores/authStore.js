@@ -8,6 +8,7 @@ export const useAuthStore = create(
       accessToken: null,
       refreshToken: null,
       isAuthenticated: false,
+      _hasHydrated: false,
 
       login: (user, accessToken, refreshToken) =>
         set({
@@ -44,3 +45,13 @@ export const useAuthStore = create(
     }
   )
 );
+
+// store 생성 완료 후 hydration 완료 감지 등록 (temporal dead zone 회피)
+useAuthStore.persist.onFinishHydration(() => {
+  useAuthStore.setState({ _hasHydrated: true });
+});
+
+// 이미 hydration이 동기적으로 완료된 경우 처리
+if (useAuthStore.persist.hasHydrated()) {
+  useAuthStore.setState({ _hasHydrated: true });
+}

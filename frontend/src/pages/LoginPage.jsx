@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import api from '../lib/axios';
@@ -9,10 +9,17 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const { login } = useAuthStore();
+  const { login, isAuthenticated, _hasHydrated } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from?.pathname || '/';
+
+  // 이미 인증된 사용자는 대시보드로 자동 리다이렉트
+  useEffect(() => {
+    if (_hasHydrated && isAuthenticated) {
+      navigate(from, { replace: true });
+    }
+  }, [_hasHydrated, isAuthenticated, navigate, from]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
