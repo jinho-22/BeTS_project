@@ -6,8 +6,11 @@ class ProjectService {
   // Client (고객사) 관리
   // ════════════════════════════════════════
 
-  async findAllClients({ page = 1, limit = 20 }) {
+  async findAllClients({ page = 1, limit = 20, dept_id }) {
     const offset = (page - 1) * limit;
+    const projectWhere = { is_deleted: false };
+    if (dept_id) projectWhere.dept_id = dept_id;
+
     return Client.findAndCountAll({
       where: { is_deleted: false },
       limit: parseInt(limit, 10),
@@ -16,8 +19,8 @@ class ProjectService {
       include: [{
         model: Project,
         as: 'projects',
-        where: { is_deleted: false },
-        required: false,
+        where: projectWhere,
+        required: !!dept_id,
       }],
     });
   }

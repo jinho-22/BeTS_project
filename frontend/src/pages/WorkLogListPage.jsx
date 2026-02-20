@@ -2,10 +2,14 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import Header from '../components/layout/Header';
+import Icon from '../components/common/Icons';
 import api from '../lib/axios';
+import { useAuthStore } from '../stores/authStore';
 
 export default function WorkLogListPage() {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const deptId = user?.role !== 'admin' ? user?.dept_id : undefined;
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState({
     work_type: '',
@@ -29,9 +33,10 @@ export default function WorkLogListPage() {
   const productNames = [...new Set(productsData?.map(p => p.product_name) || [])];
 
   const { data, isLoading } = useQuery({
-    queryKey: ['workLogs', page, filters],
+    queryKey: ['workLogs', page, filters, deptId],
     queryFn: async () => {
       const params = { page, limit: 20, ...filters };
+      if (deptId) params.dept_id = deptId;
       Object.keys(params).forEach((key) => {
         if (!params[key]) delete params[key];
       });
@@ -47,7 +52,7 @@ export default function WorkLogListPage() {
 
   return (
     <>
-      <Header title="작업 로그" />
+      <Header title="작업 내역" />
       <div className="mt-6 space-y-4">
         {/* 필터 & 액션 바 */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex flex-wrap items-center gap-3">
@@ -67,6 +72,7 @@ export default function WorkLogListPage() {
             <option value="정기점검">정기점검</option>
             <option value="장애지원">장애지원</option>
             <option value="기술지원">기술지원</option>
+            <option value="프로젝트 지원">프로젝트 지원</option>
             <option value="기타">기타</option>
           </select>
           <select
@@ -115,12 +121,12 @@ export default function WorkLogListPage() {
                   <thead>
                     <tr className="border-b border-gray-200 bg-gray-50">
                       <th className="text-left py-3 px-4 font-medium text-gray-500 w-12">No</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-500">작업일</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-500">엔지니어</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-500">고객사 / 프로젝트</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-500">제목</th>
                       <th className="text-left py-3 px-4 font-medium text-gray-500">작업유형</th>
                       <th className="text-left py-3 px-4 font-medium text-gray-500">제품</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-500">상태</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-500">고객사</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-500">프로젝트</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-500">엔지니어</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -130,24 +136,22 @@ export default function WorkLogListPage() {
                         onClick={() => navigate(`/work/${log.log_id}`)}>
                         <td className="py-3 px-4 text-gray-400">{log.log_id}</td>
                         <td className="py-3 px-4">
-                          {new Date(log.work_start).toLocaleDateString('ko-KR')}
-                        </td>
-                        <td className="py-3 px-4">{log.user?.name || '-'}</td>
-                        <td className="py-3 px-4">
-                          <span className="text-gray-400 text-xs">{log.project?.client?.client_name || ''}</span>
-                          <br />
-                          <span className="font-medium">{log.project?.project_name || '-'}</span>
+                          <span className="font-medium">{log.title || '-'}</span>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-gray-400 text-xs">{new Date(log.work_start).toLocaleDateString('ko-KR')}</span>
+                            <StatusBadge status={log.status} />
+                          </div>
                         </td>
                         <td className="py-3 px-4">
                           {log.work_type}
-                          {log.incident && <span className="ml-1 text-red-500 text-xs">🚨</span>}
+                          {log.incident && <Icon name="alert" size={12} className="ml-1 text-red-500 inline-block" />}
                         </td>
                         <td className="py-3 px-4 text-gray-500 text-xs">
                           {log.product_type}<br />{log.product_version}
                         </td>
-                        <td className="py-3 px-4">
-                          <StatusBadge status={log.status} />
-                        </td>
+                        <td className="py-3 px-4 text-sm">{log.project?.client?.client_name || '-'}</td>
+                        <td className="py-3 px-4 text-sm">{log.project?.project_name || '-'}</td>
+                        <td className="py-3 px-4 text-sm">{log.user?.name || '-'}</td>
                       </tr>
                     ))}
                   </tbody>

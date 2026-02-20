@@ -22,7 +22,7 @@ const app = express();
 // ════════════════════════════════════════
 app.use(helmet());
 app.use(cors({
-  origin: env.nodeEnv === 'development' ? 'http://localhost:5173' : process.env.FRONTEND_URL,
+  origin: env.nodeEnv === 'development' ? ['http://localhost:5173', 'http://localhost:5174'] : process.env.FRONTEND_URL,
   credentials: true,
 }));
 app.use(morgan(env.nodeEnv === 'development' ? 'dev' : 'combined'));

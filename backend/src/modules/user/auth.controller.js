@@ -29,6 +29,16 @@ class AuthController {
       next(error);
     }
   }
+
+  async changePassword(req, res, next) {
+    try {
+      const { currentPassword, newPassword } = req.body;
+      await authService.changePassword(req.user.user_id, currentPassword, newPassword);
+      sendSuccess(res, null, '비밀번호가 성공적으로 변경되었습니다.');
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 module.exports = new AuthController();

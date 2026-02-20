@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
+import Icon from '../components/common/Icons';
+import logoImg from '../assets/logo-beyond.png';
 import api from '../lib/axios';
 
 export default function LoginPage() {
@@ -43,10 +45,10 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* 로고 */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4">
-            <span className="text-3xl">🛠️</span>
+          <div className="inline-flex items-center justify-center mb-4">
+            <img src={logoImg} alt="Beyond Corp." className="h-20 w-auto" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">BeTS WorkLog</h1>
+          <h1 className="text-3xl font-bold text-gray-900">BeTS</h1>
           <p className="mt-2 text-gray-600">사내 엔지니어 작업 관리 시스템</p>
         </div>
 
@@ -99,7 +101,7 @@ export default function LoginPage() {
         </div>
 
         <p className="mt-4 text-center text-xs text-gray-500">
-          © 2026 BeTS Work Log System. All rights reserved.
+          © 2026 비욘드데이터(주). All rights reserved.
         </p>
       </div>
     </div>

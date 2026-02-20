@@ -65,6 +65,22 @@ const updateDepartmentSchema = {
   }),
 };
 
+const changePasswordSchema = {
+  body: Joi.object({
+    currentPassword: Joi.string().required().messages({
+      'any.required': '현재 비밀번호는 필수 항목입니다.',
+    }),
+    newPassword: Joi.string().min(6).required().messages({
+      'string.min': '새 비밀번호는 최소 6자 이상이어야 합니다.',
+      'any.required': '새 비밀번호는 필수 항목입니다.',
+    }),
+    confirmPassword: Joi.string().valid(Joi.ref('newPassword')).required().messages({
+      'any.only': '새 비밀번호가 일치하지 않습니다.',
+      'any.required': '비밀번호 확인은 필수 항목입니다.',
+    }),
+  }),
+};
+
 module.exports = {
   loginSchema,
   refreshSchema,
@@ -72,4 +88,5 @@ module.exports = {
   updateUserSchema,
   createDepartmentSchema,
   updateDepartmentSchema,
+  changePasswordSchema,
 };

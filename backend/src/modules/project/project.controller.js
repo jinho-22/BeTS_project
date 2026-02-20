@@ -5,8 +5,8 @@ class ProjectController {
   // ── Client ────────────────────────────
   async getAllClients(req, res, next) {
     try {
-      const { page = 1, limit = 20 } = req.query;
-      const result = await projectService.findAllClients({ page, limit });
+      const { page = 1, limit = 20, dept_id } = req.query;
+      const result = await projectService.findAllClients({ page, limit, dept_id });
       sendPaginated(res, result, page, limit, '고객사 목록 조회 성공');
     } catch (error) {
       next(error);

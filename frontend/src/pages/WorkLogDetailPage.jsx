@@ -1,6 +1,7 @@
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Header from '../components/layout/Header';
+import Icon from '../components/common/Icons';
 import api from '../lib/axios';
 import { useAuthStore } from '../stores/authStore';
 
@@ -41,6 +42,39 @@ export default function WorkLogDetailPage() {
     },
   });
 
+  const deleteFileMutation = useMutation({
+    mutationFn: async (fileId) => {
+      await api.delete(`/work/files/${fileId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workLog', id] });
+    },
+  });
+
+  const handleDownload = async (fileId, originalName) => {
+    try {
+      const response = await api.get(`/work/files/${fileId}/download`, {
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', originalName);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      alert('파일 다운로드에 실패했습니다.');
+    }
+  };
+
+  const handleDeleteFile = (fileId, fileName) => {
+    if (window.confirm(`'${fileName}' 파일을 삭제하시겠습니까?`)) {
+      deleteFileMutation.mutate(fileId);
+    }
+  };
+
   const handleStatusChange = (newStatus) => {
     if (window.confirm(`상태를 '${newStatus}'(으)로 변경하시겠습니까?`)) {
       statusMutation.mutate(newStatus);
@@ -59,7 +93,7 @@ export default function WorkLogDetailPage() {
   if (isLoading) {
     return (
       <>
-        <Header title="작업 로그 상세" />
+        <Header title="작업 내역 상세" />
         <div className="mt-6 text-center py-20 text-gray-500">로딩 중...</div>
       </>
     );
@@ -68,22 +102,27 @@ export default function WorkLogDetailPage() {
   if (!log) {
     return (
       <>
-        <Header title="작업 로그 상세" />
-        <div className="mt-6 text-center py-20 text-gray-500">작업 로그를 찾을 수 없습니다.</div>
+        <Header title="작업 내역 상세" />
+        <div className="mt-6 text-center py-20 text-gray-500">작업 내역을 찾을 수 없습니다.</div>
       </>
     );
   }
 
   return (
     <>
-      <Header title="작업 로그 상세" />
+      <Header title="작업 내역 상세" />
       <div className="mt-6 max-w-4xl space-y-6">
-        {/* 상단 액션 바 */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        {/* 제목 영역 */}
+        <div>
+          <div className="flex items-center gap-3 mb-1">
             <StatusBadge status={log.status} />
             <span className="text-sm text-gray-500">#{log.log_id}</span>
           </div>
+          <h2 className="text-xl font-bold text-gray-900">{log.title || '(제목 없음)'}</h2>
+        </div>
+
+        {/* 상단 액션 바 */}
+        <div className="flex items-center justify-end">
           <div className="flex items-center gap-2">
             {/* 상태 변경 버튼 (관리자/매니저) */}
             {isManager && log.status === '등록' && (
@@ -151,7 +190,10 @@ export default function WorkLogDetailPage() {
         {/* 장애 상세 */}
         {log.incident && (
           <div className="bg-white rounded-xl shadow-sm border border-red-200 p-6">
-            <h3 className="text-lg font-semibold text-red-700 mb-4">🚨 장애 상세</h3>
+            <h3 className="text-lg font-semibold text-red-700 mb-4 flex items-center gap-2">
+              <Icon name="alert" size={18} className="text-red-600" />
+              장애 상세
+            </h3>
             <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
               <InfoItem label="영향도" value={<SeverityBadge severity={log.incident.severity} />} />
               <InfoItem label="조치 유형" value={log.incident.action_type} />
@@ -177,9 +219,30 @@ export default function WorkLogDetailPage() {
             <h3 className="text-lg font-semibold text-gray-800 mb-4">첨부 파일</h3>
             <ul className="space-y-2">
               {log.files.map((file) => (
-                <li key={file.file_id} className="flex items-center gap-2 text-sm text-gray-600">
-                  <span>📎</span>
-                  <span>{file.original_name}</span>
+                <li key={file.file_id} className="flex items-center justify-between text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded-lg">
+                  <span className="flex items-center gap-2">
+                    <Icon name="attach" size={14} className="text-gray-400 shrink-0" />
+                    <span>{file.original_name}</span>
+                    {file.file_size > 0 && (
+                      <span className="text-xs text-gray-400">
+                        ({file.file_size >= 1048576
+                          ? (file.file_size / 1048576).toFixed(1) + ' MB'
+                          : (file.file_size / 1024).toFixed(1) + ' KB'})
+                      </span>
+                    )}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => handleDownload(file.file_id, file.original_name)}
+                      className="text-blue-600 hover:text-blue-800 text-xs font-medium">
+                      다운로드
+                    </button>
+                    {(isOwner || isManager) && log.status === '등록' && (
+                      <button onClick={() => handleDeleteFile(file.file_id, file.original_name)}
+                        className="text-red-500 hover:text-red-700 text-xs font-medium">
+                        삭제
+                      </button>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>

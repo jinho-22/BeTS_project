@@ -9,12 +9,12 @@ import WorkLogListPage from './pages/WorkLogListPage';
 import WorkLogCreatePage from './pages/WorkLogCreatePage';
 import WorkLogDetailPage from './pages/WorkLogDetailPage';
 import WorkLogEditPage from './pages/WorkLogEditPage';
-import ProjectListPage from './pages/ProjectListPage';
 import ClientListPage from './pages/ClientListPage';
 import UserManagementPage from './pages/UserManagementPage';
 import DepartmentManagementPage from './pages/DepartmentManagementPage';
 import ProductManagementPage from './pages/ProductManagementPage';
 import StatisticsPage from './pages/StatisticsPage';
+import ChangePasswordPage from './pages/ChangePasswordPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -51,15 +51,17 @@ export default function App() {
               {/* 대시보드 */}
               <Route path="/" element={<DashboardPage />} />
 
-              {/* 작업 로그 */}
+              {/* 작업 내역 */}
               <Route path="/work" element={<WorkLogListPage />} />
               <Route path="/work/new" element={<WorkLogCreatePage />} />
               <Route path="/work/:id" element={<WorkLogDetailPage />} />
               <Route path="/work/:id/edit" element={<WorkLogEditPage />} />
 
-              {/* 프로젝트 & 고객사 */}
-              <Route path="/projects" element={<ProjectListPage />} />
+              {/* 고객사 (프로젝트 통합) */}
               <Route path="/clients" element={<ClientListPage />} />
+
+              {/* 비밀번호 변경 */}
+              <Route path="/change-password" element={<ChangePasswordPage />} />
 
               {/* 관리자(admin) 전용 */}
               <Route

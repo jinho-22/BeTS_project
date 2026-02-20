@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 200">
+  <defs>
+    <linearGradient id="swoosh1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2B7CB8"/>
+      <stop offset="100%" stop-color="#4A9AD4"/>
+    </linearGradient>
+    <linearGradient id="swoosh2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E6CA0"/>
+      <stop offset="100%" stop-color="#3B8CC8"/>
+    </linearGradient>
+  </defs>
+  <!-- 외곽 큰 스웜 (밝은 파랑) -->
+  <path d="M185 25C155-8 95-8 55 30C20 62 8 115 35 155C58 188 105 195 145 175C178 158 198 120 190 82C185 58 168 38 148 28"
+        fill="none" stroke="url(#swoosh1)" stroke-width="30" stroke-linecap="round" opacity="0.65"/>
+  <!-- 내부 스웜 (진한 파랑) -->
+  <path d="M168 42C145 15 100 12 68 42C40 68 35 112 58 145C78 170 115 178 148 160C172 145 182 115 172 85C166 66 150 50 135 42"
+        fill="none" stroke="url(#swoosh2)" stroke-width="24" stroke-linecap="round" opacity="0.85"/>
+  <!-- BEYOND 텍스트 -->
+  <text x="120" y="108" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="800" font-style="italic" fill="#E2D040" letter-spacing="1">BEYOND</text>
+  <!-- CORP. 텍스트 -->
+  <text x="138" y="145" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="700" font-style="italic" fill="#E2D040" letter-spacing="2">CORP.</text>
+</svg>

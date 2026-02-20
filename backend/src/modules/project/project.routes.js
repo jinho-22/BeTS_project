@@ -37,7 +37,7 @@ router.delete('/:id', authorize('admin'), projectController.deleteProject);
 // ManagerContact (고객사 담당자) API
 // ════════════════════════════════════════
 router.get('/:projectId/contacts', projectController.getContactsByProject);
-router.post('/contacts', authorize('admin', 'manager'), validate(createContactSchema), projectController.createContact);
+router.post('/contacts', validate(createContactSchema), projectController.createContact);
 router.put('/contacts/:id', authorize('admin', 'manager'), validate(updateContactSchema), projectController.updateContact);
 router.delete('/contacts/:id', authorize('admin'), projectController.deleteContact);
 

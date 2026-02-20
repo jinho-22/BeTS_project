@@ -3,17 +3,22 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Header from '../components/layout/Header';
 import DateTimePicker from '../components/common/DateTimePicker';
+import Icon from '../components/common/Icons';
 import api from '../lib/axios';
+import { useAuthStore } from '../stores/authStore';
 
-const WORK_TYPES = ['정기점검', '장애지원', '기술지원', '기타'];
+const WORK_TYPES = ['정기점검', '장애지원', '기술지원', '프로젝트 지원', '기타'];
 const SUPPORT_TYPES = ['원격', '방문', '가이드', '전화', '기타'];
 const INCIDENT_WORK_TYPES = ['장애지원'];
 
 export default function WorkLogCreatePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuthStore();
+  const deptId = user?.role !== 'admin' ? user?.dept_id : undefined;
 
   const [form, setForm] = useState({
+    title: '',
     project_id: '',
     contact_id: '',
     work_start: '',
@@ -26,6 +31,10 @@ export default function WorkLogCreatePage() {
     details: '',
   });
 
+  // 담당자 직접 입력 관련
+  const [contactMode, setContactMode] = useState('select'); // 'select' | 'direct'
+  const [newContact, setNewContact] = useState({ name: '', phone: '', email: '' });
+
   const [incident, setIncident] = useState({
     action_type: '',
     start_time: '',
@@ -35,14 +44,19 @@ export default function WorkLogCreatePage() {
     is_recurrence: 'N',
   });
 
+  const [selectedFiles, setSelectedFiles] = useState([]);
+
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const isIncidentType = INCIDENT_WORK_TYPES.includes(form.work_type);
 
-  // 프로젝트 목록
+  // 프로젝트 목록 (부서 필터 적용)
   const { data: projectsData } = useQuery({
-    queryKey: ['projects'],
+    queryKey: ['projects', deptId],
     queryFn: async () => {
-      const { data } = await api.get('/projects', { params: { limit: 200 } });
+      const params = { limit: 200 };
+      if (deptId) params.dept_id = deptId;
+      const { data } = await api.get('/projects', { params });
       return data.data;
     },
   });
@@ -66,22 +80,6 @@ export default function WorkLogCreatePage() {
     },
   });
 
-  const createMutation = useMutation({
-    mutationFn: async (payload) => {
-      const { data } = await api.post('/work', payload);
-      return data;
-    },
-    onSuccess: () => {
-      // await 없이 비동기로 캐시 무효화 (blocking 방지)
-      queryClient.invalidateQueries({ queryKey: ['workLogs'] });
-      queryClient.invalidateQueries({ queryKey: ['statistics'] });
-      navigate('/work');
-    },
-    onError: (err) => {
-      setError(err.response?.data?.message || '작업 로그 등록에 실패했습니다.');
-    },
-  });
-
   // 제품 유형별 그룹핑
   const productsByType = {};
   productsData?.forEach(p => {
@@ -99,6 +97,7 @@ export default function WorkLogCreatePage() {
     // 프로젝트 변경 시 담당자 초기화
     if (name === 'project_id') {
       setForm((prev) => ({ ...prev, contact_id: '' }));
+      setNewContact({ name: '', phone: '', email: '' });
     }
     // 서비스 유형 변경 시 제품명 초기화
     if (name === 'service_type') {
@@ -111,26 +110,106 @@ export default function WorkLogCreatePage() {
     setIncident((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setError('');
+  const handleContactModeChange = (mode) => {
+    setContactMode(mode);
+    if (mode === 'select') {
+      setNewContact({ name: '', phone: '', email: '' });
+    } else {
+      setForm((prev) => ({ ...prev, contact_id: '' }));
+    }
+  };
 
-    const payload = {
-      ...form,
-      project_id: parseInt(form.project_id),
-      contact_id: parseInt(form.contact_id),
-    };
+  const handleFileChange = (e) => {
+    const newFiles = Array.from(e.target.files);
+    if (newFiles.length === 0) return;
 
-    if (isIncidentType) {
-      payload.incident = incident;
+    const oversized = newFiles.filter((f) => f.size > 10 * 1024 * 1024);
+    if (oversized.length > 0) {
+      setError(`파일 크기가 10MB를 초과합니다: ${oversized.map((f) => f.name).join(', ')}`);
+      e.target.value = '';
+      return;
     }
 
-    createMutation.mutate(payload);
+    const merged = [...selectedFiles, ...newFiles];
+    if (merged.length > 5) {
+      setError('파일은 최대 5개까지 첨부할 수 있습니다.');
+      e.target.value = '';
+      return;
+    }
+    setSelectedFiles(merged);
+    e.target.value = '';
+  };
+
+  const handleRemoveFile = (index) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+
+    try {
+      let contactId = parseInt(form.contact_id);
+
+      // 직접 입력 모드: 먼저 담당자를 생성
+      if (contactMode === 'direct') {
+        if (!newContact.name.trim()) {
+          setError('담당자 이름을 입력해주세요.');
+          setSubmitting(false);
+          return;
+        }
+        if (!form.project_id) {
+          setError('프로젝트를 먼저 선택해주세요.');
+          setSubmitting(false);
+          return;
+        }
+
+        const { data: contactRes } = await api.post('/projects/contacts', {
+          project_id: parseInt(form.project_id),
+          name: newContact.name.trim(),
+          email: newContact.email.trim() || '',
+          phone: newContact.phone.trim() || '',
+        });
+        contactId = contactRes.data.contact_id;
+
+        // 담당자 목록 캐시 갱신
+        queryClient.invalidateQueries({ queryKey: ['contacts', form.project_id] });
+      }
+
+      const payload = {
+        ...form,
+        project_id: parseInt(form.project_id),
+        contact_id: contactId,
+      };
+
+      if (isIncidentType) {
+        payload.incident = incident;
+      }
+
+      const { data: createRes } = await api.post('/work', payload);
+      const createdLogId = createRes.data.log_id;
+
+      // 파일이 선택되어 있으면 업로드
+      if (selectedFiles.length > 0) {
+        const formData = new FormData();
+        selectedFiles.forEach((file) => formData.append('files', file));
+        await api.post(`/work/${createdLogId}/files`, formData);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['workLogs'] });
+      queryClient.invalidateQueries({ queryKey: ['statistics'] });
+      navigate(`/work/${createdLogId}`);
+    } catch (err) {
+      setError(err.response?.data?.message || '작업 내역 등록에 실패했습니다.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <>
-      <Header title="작업 로그 등록" />
+      <Header title="작업 내역 등록" />
       <div className="mt-6 max-w-4xl">
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
@@ -143,6 +222,13 @@ export default function WorkLogCreatePage() {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">기본 정보</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">제목 *</label>
+                <input type="text" name="title" value={form.title} onChange={handleChange} required
+                  placeholder="작업 내용을 간략히 요약하세요"
+                  maxLength={200}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">프로젝트 *</label>
                 <select name="project_id" value={form.project_id} onChange={handleChange} required
@@ -155,17 +241,56 @@ export default function WorkLogCreatePage() {
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">요청자 *</label>
-                <select name="contact_id" value={form.contact_id} onChange={handleChange} required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
-                  <option value="">선택하세요</option>
-                  {contactsData?.map((c) => (
-                    <option key={c.contact_id} value={c.contact_id}>
-                      {c.name} ({c.phone})
-                    </option>
-                  ))}
-                </select>
+              <div className={contactMode === 'direct' ? 'md:col-span-2' : ''}>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  요청자 *
+                  <span className="ml-2 inline-flex rounded-md shadow-sm">
+                    <button type="button" onClick={() => handleContactModeChange('select')}
+                      className={`px-2 py-0.5 text-xs rounded-l-md border ${contactMode === 'select' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
+                      선택
+                    </button>
+                    <button type="button" onClick={() => handleContactModeChange('direct')}
+                      className={`px-2 py-0.5 text-xs rounded-r-md border-t border-r border-b ${contactMode === 'direct' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
+                      직접입력
+                    </button>
+                  </span>
+                </label>
+                {contactMode === 'select' ? (
+                  <select name="contact_id" value={form.contact_id} onChange={handleChange} required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                    <option value="">선택하세요</option>
+                    {contactsData?.map((c) => (
+                      <option key={c.contact_id} value={c.contact_id}>
+                        {c.name} {c.phone ? `(${c.phone})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2">
+                    <input
+                      type="text"
+                      placeholder="담당자 이름 *"
+                      value={newContact.name}
+                      onChange={(e) => setNewContact((prev) => ({ ...prev, name: e.target.value }))}
+                      required
+                      className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    />
+                    <input
+                      type="email"
+                      placeholder="이메일"
+                      value={newContact.email}
+                      onChange={(e) => setNewContact((prev) => ({ ...prev, email: e.target.value }))}
+                      className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    />
+                    <input
+                      type="text"
+                      placeholder="전화번호"
+                      value={newContact.phone}
+                      onChange={(e) => setNewContact((prev) => ({ ...prev, phone: e.target.value }))}
+                      className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    />
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">작업 시작일시 *</label>
@@ -246,7 +371,7 @@ export default function WorkLogCreatePage() {
           {/* 장애 상세 (장애 관련 작업 유형일 때만 표시) */}
           {isIncidentType && (
             <div className="bg-white rounded-xl shadow-sm border border-red-200 p-6">
-              <h3 className="text-lg font-semibold text-red-700 mb-4">🚨 장애 상세 정보</h3>
+              <h3 className="text-lg font-semibold text-red-700 mb-4">장애 상세 정보</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">조치 유형 *</label>
@@ -315,11 +440,53 @@ export default function WorkLogCreatePage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm resize-y" />
           </div>
 
+          {/* 첨부 파일 */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">첨부 파일</h3>
+            <div className="space-y-3">
+              <input
+                type="file"
+                multiple
+                onChange={handleFileChange}
+                className="block w-full text-sm text-gray-500
+                  file:mr-4 file:py-2 file:px-4
+                  file:rounded-lg file:border-0
+                  file:text-sm file:font-medium
+                  file:bg-blue-50 file:text-blue-700
+                  hover:file:bg-blue-100"
+              />
+              <p className="text-xs text-gray-400">
+                최대 5개, 파일당 10MB 이하 (PDF, 문서, 이미지, 압축파일 등)
+              </p>
+              {selectedFiles.length > 0 && (
+                <ul className="space-y-1">
+                  {selectedFiles.map((file, idx) => (
+                    <li key={idx} className="flex items-center justify-between text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded-lg">
+                      <span className="flex items-center gap-2">
+                        <Icon name="attach" size={14} className="text-gray-400 shrink-0" />
+                        <span>{file.name}</span>
+                        <span className="text-xs text-gray-400">
+                          ({file.size >= 1048576
+                            ? (file.size / 1048576).toFixed(1) + ' MB'
+                            : (file.size / 1024).toFixed(1) + ' KB'})
+                        </span>
+                      </span>
+                      <button type="button" onClick={() => handleRemoveFile(idx)}
+                        className="text-red-500 hover:text-red-700 text-xs font-medium">
+                        삭제
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+
           {/* 버튼 */}
           <div className="flex items-center gap-3">
-            <button type="submit" disabled={createMutation.isPending}
+            <button type="submit" disabled={submitting}
               className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">
-              {createMutation.isPending ? '등록 중...' : '작업 로그 등록'}
+              {submitting ? '등록 중...' : '작업 내역 등록'}
             </button>
             <button type="button" onClick={() => navigate('/work')}
               className="bg-gray-200 text-gray-700 px-6 py-2.5 rounded-lg font-medium hover:bg-gray-300 transition-colors">

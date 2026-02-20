@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import Icon from './Icons';
 
 /**
  * React Error Boundary
@@ -33,7 +34,7 @@ export default class ErrorBoundary extends Component {
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
           <div className="text-center max-w-md px-6">
             <div className="inline-flex items-center justify-center w-20 h-20 bg-red-100 rounded-2xl mb-6">
-              <span className="text-4xl">⚠️</span>
+              <Icon name="warning" size={40} className="text-red-500" />
             </div>
             <h2 className="text-xl font-bold text-gray-900 mb-2">
               오류가 발생했습니다

@@ -8,12 +8,16 @@ const api = axios.create({
   },
 });
 
-// 요청 인터셉터: 토큰 자동 추가
+// 요청 인터셉터: 토큰 자동 추가 + FormData 지원
 api.interceptors.request.use(
   (config) => {
     const token = useAuthStore.getState().accessToken;
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    // FormData일 경우 Content-Type을 삭제하여 브라우저가 boundary 포함 자동 설정
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
     }
     return config;
   },
