@@ -3,9 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Header from '../components/layout/Header';
 import DateTimePicker from '../components/common/DateTimePicker';
+import Icon from '../components/common/Icons';
 import api from '../lib/axios';
+import { useAuthStore } from '../stores/authStore';
 
-const WORK_TYPES = ['정기점검', '장애지원', '기술지원', '기타'];
+const WORK_TYPES = ['정기점검', '장애지원', '기술지원', '프로젝트 지원', '기타'];
 const SUPPORT_TYPES = ['원격', '방문', '가이드', '전화', '기타'];
 const INCIDENT_WORK_TYPES = ['장애지원'];
 
@@ -21,10 +23,18 @@ export default function WorkLogEditPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { user } = useAuthStore();
+  const deptId = user?.role !== 'admin' ? user?.dept_id : undefined;
 
   const [form, setForm] = useState(null);
   const [incident, setIncident] = useState(null);
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+
+  // 담당자 직접 입력 관련
+  const [contactMode, setContactMode] = useState('select');
+  const [newContact, setNewContact] = useState({ name: '', phone: '', email: '' });
 
   const { data: logData } = useQuery({
     queryKey: ['workLog', id],
@@ -35,9 +45,11 @@ export default function WorkLogEditPage() {
   });
 
   const { data: projectsData } = useQuery({
-    queryKey: ['projects'],
+    queryKey: ['projects', deptId],
     queryFn: async () => {
-      const { data } = await api.get('/projects', { params: { limit: 200 } });
+      const params = { limit: 200 };
+      if (deptId) params.dept_id = deptId;
+      const { data } = await api.get('/projects', { params });
       return data.data;
     },
   });
@@ -63,6 +75,7 @@ export default function WorkLogEditPage() {
   useEffect(() => {
     if (logData && !form) {
       setForm({
+        title: logData.title || '',
         project_id: logData.project_id?.toString() || '',
         contact_id: logData.contact_id?.toString() || '',
         work_start: toLocalDatetime(logData.work_start),
@@ -87,27 +100,10 @@ export default function WorkLogEditPage() {
     }
   }, [logData]);
 
-  const updateMutation = useMutation({
-    mutationFn: async (payload) => {
-      const { data } = await api.put(`/work/${id}`, payload);
-      return data;
-    },
-    onSuccess: () => {
-      // await 없이 비동기로 캐시 무효화 (blocking 방지)
-      queryClient.invalidateQueries({ queryKey: ['workLog', id] });
-      queryClient.invalidateQueries({ queryKey: ['workLogs'] });
-      queryClient.invalidateQueries({ queryKey: ['statistics'] });
-      navigate(`/work/${id}`);
-    },
-    onError: (err) => {
-      setError(err.response?.data?.message || '수정에 실패했습니다.');
-    },
-  });
-
   if (!form) {
     return (
       <>
-        <Header title="작업 로그 수정" />
+        <Header title="작업 내역 수정" />
         <div className="mt-6 text-center py-20 text-gray-500">로딩 중...</div>
       </>
     );
@@ -131,6 +127,7 @@ export default function WorkLogEditPage() {
     setForm((prev) => ({ ...prev, [name]: value }));
     if (name === 'project_id') {
       setForm((prev) => ({ ...prev, contact_id: '' }));
+      setNewContact({ name: '', phone: '', email: '' });
     }
     if (name === 'service_type') {
       setForm((prev) => ({ ...prev, product_type: '' }));
@@ -150,26 +147,111 @@ export default function WorkLogEditPage() {
     }
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setError('');
+  const handleContactModeChange = (mode) => {
+    setContactMode(mode);
+    if (mode === 'select') {
+      setNewContact({ name: '', phone: '', email: '' });
+    } else {
+      setForm((prev) => ({ ...prev, contact_id: '' }));
+    }
+  };
 
-    const payload = {
-      ...form,
-      project_id: parseInt(form.project_id),
-      contact_id: parseInt(form.contact_id),
-    };
+  const handleFileUpload = async (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
 
-    if (isIncidentType && incident) {
-      payload.incident = incident;
+    const oversized = files.filter((f) => f.size > 10 * 1024 * 1024);
+    if (oversized.length > 0) {
+      setError(`파일 크기가 10MB를 초과합니다: ${oversized.map((f) => f.name).join(', ')}`);
+      return;
+    }
+    if (files.length > 5) {
+      setError('한 번에 최대 5개 파일까지 업로드할 수 있습니다.');
+      return;
     }
 
-    updateMutation.mutate(payload);
+    setUploadingFiles(true);
+    setError('');
+    try {
+      const formData = new FormData();
+      files.forEach((file) => formData.append('files', file));
+      await api.post(`/work/${id}/files`, formData);
+      queryClient.invalidateQueries({ queryKey: ['workLog', id] });
+      e.target.value = '';
+    } catch (err) {
+      setError(err.response?.data?.message || '파일 업로드에 실패했습니다.');
+    } finally {
+      setUploadingFiles(false);
+    }
+  };
+
+  const handleDeleteFile = (fileId, fileName) => {
+    if (window.confirm(`'${fileName}' 파일을 삭제하시겠습니까?`)) {
+      api.delete(`/work/files/${fileId}`).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['workLog', id] });
+      }).catch((err) => {
+        setError(err.response?.data?.message || '파일 삭제에 실패했습니다.');
+      });
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+
+    try {
+      let contactId = parseInt(form.contact_id);
+
+      // 직접 입력 모드: 먼저 담당자를 생성
+      if (contactMode === 'direct') {
+        if (!newContact.name.trim()) {
+          setError('담당자 이름을 입력해주세요.');
+          setSubmitting(false);
+          return;
+        }
+        if (!form.project_id) {
+          setError('프로젝트를 먼저 선택해주세요.');
+          setSubmitting(false);
+          return;
+        }
+
+        const { data: contactRes } = await api.post('/projects/contacts', {
+          project_id: parseInt(form.project_id),
+          name: newContact.name.trim(),
+          email: newContact.email.trim() || '',
+          phone: newContact.phone.trim() || '',
+        });
+        contactId = contactRes.data.contact_id;
+
+        queryClient.invalidateQueries({ queryKey: ['contacts', form.project_id] });
+      }
+
+      const payload = {
+        ...form,
+        project_id: parseInt(form.project_id),
+        contact_id: contactId,
+      };
+
+      if (isIncidentType && incident) {
+        payload.incident = incident;
+      }
+
+      await api.put(`/work/${id}`, payload);
+      queryClient.invalidateQueries({ queryKey: ['workLog', id] });
+      queryClient.invalidateQueries({ queryKey: ['workLogs'] });
+      queryClient.invalidateQueries({ queryKey: ['statistics'] });
+      navigate(`/work/${id}`);
+    } catch (err) {
+      setError(err.response?.data?.message || '수정에 실패했습니다.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <>
-      <Header title="작업 로그 수정" />
+      <Header title="작업 내역 수정" />
       <div className="mt-6 max-w-4xl">
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
@@ -179,6 +261,13 @@ export default function WorkLogEditPage() {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">기본 정보</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">제목 *</label>
+                <input type="text" name="title" value={form.title} onChange={handleChange} required
+                  placeholder="작업 내용을 간략히 요약하세요"
+                  maxLength={200}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">프로젝트 *</label>
                 <select name="project_id" value={form.project_id} onChange={handleChange} required
@@ -191,17 +280,56 @@ export default function WorkLogEditPage() {
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">요청자 *</label>
-                <select name="contact_id" value={form.contact_id} onChange={handleChange} required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
-                  <option value="">선택하세요</option>
-                  {contactsData?.map((c) => (
-                    <option key={c.contact_id} value={c.contact_id}>
-                      {c.name} ({c.phone})
-                    </option>
-                  ))}
-                </select>
+              <div className={contactMode === 'direct' ? 'md:col-span-2' : ''}>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  요청자 *
+                  <span className="ml-2 inline-flex rounded-md shadow-sm">
+                    <button type="button" onClick={() => handleContactModeChange('select')}
+                      className={`px-2 py-0.5 text-xs rounded-l-md border ${contactMode === 'select' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
+                      선택
+                    </button>
+                    <button type="button" onClick={() => handleContactModeChange('direct')}
+                      className={`px-2 py-0.5 text-xs rounded-r-md border-t border-r border-b ${contactMode === 'direct' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
+                      직접입력
+                    </button>
+                  </span>
+                </label>
+                {contactMode === 'select' ? (
+                  <select name="contact_id" value={form.contact_id} onChange={handleChange} required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                    <option value="">선택하세요</option>
+                    {contactsData?.map((c) => (
+                      <option key={c.contact_id} value={c.contact_id}>
+                        {c.name} {c.phone ? `(${c.phone})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2">
+                    <input
+                      type="text"
+                      placeholder="담당자 이름 *"
+                      value={newContact.name}
+                      onChange={(e) => setNewContact((prev) => ({ ...prev, name: e.target.value }))}
+                      required
+                      className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    />
+                    <input
+                      type="email"
+                      placeholder="이메일"
+                      value={newContact.email}
+                      onChange={(e) => setNewContact((prev) => ({ ...prev, email: e.target.value }))}
+                      className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    />
+                    <input
+                      type="text"
+                      placeholder="전화번호"
+                      value={newContact.phone}
+                      onChange={(e) => setNewContact((prev) => ({ ...prev, phone: e.target.value }))}
+                      className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    />
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">작업 시작일시 *</label>
@@ -227,7 +355,7 @@ export default function WorkLogEditPage() {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">작업 분류</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <SelectField label="작업 유형" name="work_type" value={form.work_type} options={WORK_TYPES} onChange={handleChange} />
+              <SelectField label="작업 유형" name="work_type" value={form.work_type} options={WORK_TYPES} onChange={handleChange} disabled hint="작업 유형은 변경할 수 없습니다" />
               <SelectField label="지원 구분" name="supprt_type" value={form.supprt_type} options={SUPPORT_TYPES} onChange={handleChange} />
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">제품 유형 *</label>
@@ -271,7 +399,7 @@ export default function WorkLogEditPage() {
 
           {isIncidentType && (
             <div className="bg-white rounded-xl shadow-sm border border-red-200 p-6">
-              <h3 className="text-lg font-semibold text-red-700 mb-4">🚨 장애 상세 정보</h3>
+              <h3 className="text-lg font-semibold text-red-700 mb-4">장애 상세 정보</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">조치 유형 *</label>
@@ -337,10 +465,63 @@ export default function WorkLogEditPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm resize-y" />
           </div>
 
+          {/* 첨부 파일 */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">첨부 파일</h3>
+
+            {/* 기존 파일 목록 */}
+            {logData?.files && logData.files.length > 0 && (
+              <ul className="space-y-2 mb-4">
+                {logData.files.map((file) => (
+                  <li key={file.file_id} className="flex items-center justify-between text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded-lg">
+                    <span className="flex items-center gap-2">
+                      <Icon name="attach" size={14} className="text-gray-400 shrink-0" />
+                      <span>{file.original_name}</span>
+                      {file.file_size > 0 && (
+                        <span className="text-xs text-gray-400">
+                          ({file.file_size >= 1048576
+                            ? (file.file_size / 1048576).toFixed(1) + ' MB'
+                            : (file.file_size / 1024).toFixed(1) + ' KB'})
+                        </span>
+                      )}
+                    </span>
+                    <button type="button" onClick={() => handleDeleteFile(file.file_id, file.original_name)}
+                      className="text-red-500 hover:text-red-700 text-xs font-medium">
+                      삭제
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {/* 파일 추가 업로드 */}
+            <div className="space-y-2">
+              <input
+                type="file"
+                multiple
+                onChange={handleFileUpload}
+                disabled={uploadingFiles}
+                className="block w-full text-sm text-gray-500
+                  file:mr-4 file:py-2 file:px-4
+                  file:rounded-lg file:border-0
+                  file:text-sm file:font-medium
+                  file:bg-blue-50 file:text-blue-700
+                  hover:file:bg-blue-100
+                  disabled:opacity-50"
+              />
+              {uploadingFiles && (
+                <p className="text-sm text-blue-600">파일 업로드 중...</p>
+              )}
+              <p className="text-xs text-gray-400">
+                최대 5개, 파일당 10MB 이하 (PDF, 문서, 이미지, 압축파일 등)
+              </p>
+            </div>
+          </div>
+
           <div className="flex items-center gap-3">
-            <button type="submit" disabled={updateMutation.isPending}
+            <button type="submit" disabled={submitting}
               className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50">
-              {updateMutation.isPending ? '수정 중...' : '수정 완료'}
+              {submitting ? '수정 중...' : '수정 완료'}
             </button>
             <button type="button" onClick={() => navigate(`/work/${id}`)}
               className="bg-gray-200 text-gray-700 px-6 py-2.5 rounded-lg font-medium hover:bg-gray-300 transition-colors">
@@ -353,15 +534,16 @@ export default function WorkLogEditPage() {
   );
 }
 
-function SelectField({ label, name, value, options, onChange }) {
+function SelectField({ label, name, value, options, onChange, disabled, hint }) {
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">{label} *</label>
-      <select name={name} value={value} onChange={onChange} required
-        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+      <select name={name} value={value} onChange={onChange} required disabled={disabled}
+        className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${disabled ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}>
         <option value="">선택하세요</option>
         {options.map((t) => <option key={t} value={t}>{t}</option>)}
       </select>
+      {hint && <p className="text-xs text-gray-400 mt-1">{hint}</p>}
     </div>
   );
 }

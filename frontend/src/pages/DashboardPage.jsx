@@ -1,38 +1,63 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import Header from '../components/layout/Header';
+import Icon from '../components/common/Icons';
 import api from '../lib/axios';
 import { useAuthStore } from '../stores/authStore';
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
-  const isManager = user?.role === 'admin' || user?.role === 'manager';
 
-  const { data: workLogs, isLoading } = useQuery({
-    queryKey: ['workLogs', 'recent'],
+  // 내 작업 전체 건수
+  const { data: totalData } = useQuery({
+    queryKey: ['workLogs', 'myTotal', user?.user_id],
     queryFn: async () => {
-      const { data } = await api.get('/work', { params: { limit: 10 } });
+      const { data } = await api.get('/work', { params: { user_id: user?.user_id, limit: 1 } });
       return data;
     },
+    enabled: !!user?.user_id,
   });
 
-  const { data: stats } = useQuery({
-    queryKey: ['statistics', 'dashboard'],
+  // 상태별 건수 (등록)
+  const { data: registeredData } = useQuery({
+    queryKey: ['workLogs', 'myStatus', user?.user_id, '등록'],
     queryFn: async () => {
-      const { data } = await api.get('/work/statistics');
-      return data.data;
+      const { data } = await api.get('/work', { params: { user_id: user?.user_id, status: '등록', limit: 1 } });
+      return data;
     },
-    enabled: isManager, // admin/manager만 통계 API 호출
-    retry: false,       // 권한 에러 시 재시도 방지
+    enabled: !!user?.user_id,
   });
 
-  // 상태별 건수 계산
-  const getStatusCount = (status) => {
-    if (!stats?.byStatus) return '-';
-    const found = stats.byStatus.find((s) => s.status === status);
-    return found ? Number(found.count) || 0 : 0;
-  };
+  // 상태별 건수 (관리자확인)
+  const { data: checkedData } = useQuery({
+    queryKey: ['workLogs', 'myStatus', user?.user_id, '관리자확인'],
+    queryFn: async () => {
+      const { data } = await api.get('/work', { params: { user_id: user?.user_id, status: '관리자확인', limit: 1 } });
+      return data;
+    },
+    enabled: !!user?.user_id,
+  });
+
+  // 상태별 건수 (승인완료)
+  const { data: approvedData } = useQuery({
+    queryKey: ['workLogs', 'myStatus', user?.user_id, '승인완료'],
+    queryFn: async () => {
+      const { data } = await api.get('/work', { params: { user_id: user?.user_id, status: '승인완료', limit: 1 } });
+      return data;
+    },
+    enabled: !!user?.user_id,
+  });
+
+  // 최근 내 작업 내역 (10건)
+  const { data: workLogs, isLoading } = useQuery({
+    queryKey: ['workLogs', 'myRecent', user?.user_id],
+    queryFn: async () => {
+      const { data } = await api.get('/work', { params: { user_id: user?.user_id, limit: 10 } });
+      return data;
+    },
+    enabled: !!user?.user_id,
+  });
 
   return (
     <>
@@ -40,45 +65,47 @@ export default function DashboardPage() {
       <div className="mt-6 space-y-6">
         {/* 환영 메시지 */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-0">
-          <h3 className="text-lg font-semibold">안녕하세요, {user?.name}님 👋</h3>
+          <h3 className="text-lg font-semibold">안녕하세요, {user?.name}님</h3>
           <p className="mt-1 text-blue-100">오늘의 작업 현황을 확인하세요.</p>
         </div>
 
         {/* 통계 카드 */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <StatCard
-            title="전체 작업"
-            value={stats?.totalCount ?? workLogs?.pagination?.total ?? '-'}
-            icon="📋" color="blue"
-          />
-          <StatCard title="등록" value={getStatusCount('등록')} icon="📝" color="yellow" />
-          <StatCard title="관리자확인" value={getStatusCount('관리자확인')} icon="👀" color="purple" />
-          <StatCard title="승인완료" value={getStatusCount('승인완료')} icon="✅" color="green" />
+          <StatCard title="전체 작업" value={totalData?.pagination?.total ?? '-'} icon="clipboard" color="blue" />
+          <StatCard title="등록" value={registeredData?.pagination?.total ?? '-'} icon="memo" color="yellow" />
+          <StatCard title="관리자확인" value={checkedData?.pagination?.total ?? '-'} icon="eye" color="purple" />
+          <StatCard title="승인완료" value={approvedData?.pagination?.total ?? '-'} icon="check" color="green" />
         </div>
 
         {/* 빠른 액션 */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Link to="/work/new" className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:border-blue-300 hover:shadow-md transition-all group">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center text-lg group-hover:bg-blue-200 transition-colors">📝</div>
+              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center group-hover:bg-blue-200 transition-colors">
+                <Icon name="memo" size={20} className="text-blue-600" />
+              </div>
               <div>
                 <p className="font-medium text-gray-800">새 작업 등록</p>
                 <p className="text-xs text-gray-500">작업 내역을 기록합니다</p>
               </div>
             </div>
           </Link>
-          <Link to="/projects" className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:border-blue-300 hover:shadow-md transition-all group">
+          <Link to="/clients" className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:border-blue-300 hover:shadow-md transition-all group">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center text-lg group-hover:bg-green-200 transition-colors">📁</div>
+              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center group-hover:bg-green-200 transition-colors">
+                <Icon name="building" size={20} className="text-green-600" />
+              </div>
               <div>
-                <p className="font-medium text-gray-800">프로젝트 관리</p>
-                <p className="text-xs text-gray-500">프로젝트 및 담당자 관리</p>
+                <p className="font-medium text-gray-800">고객사/프로젝트 관리</p>
+                <p className="text-xs text-gray-500">고객사 및 프로젝트 관리</p>
               </div>
             </div>
           </Link>
           <Link to="/work" className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:border-blue-300 hover:shadow-md transition-all group">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center text-lg group-hover:bg-purple-200 transition-colors">📋</div>
+              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center group-hover:bg-purple-200 transition-colors">
+                <Icon name="clipboard" size={20} className="text-purple-600" />
+              </div>
               <div>
                 <p className="font-medium text-gray-800">작업 내역 조회</p>
                 <p className="text-xs text-gray-500">등록된 작업 내역을 검색합니다</p>
@@ -87,7 +114,7 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        {/* 최근 작업 로그 */}
+        {/* 최근 작업 내역 */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-800">최근 작업 내역</h3>
@@ -101,7 +128,6 @@ export default function DashboardPage() {
                 <thead>
                   <tr className="border-b border-gray-200">
                     <th className="text-left py-3 px-4 font-medium text-gray-500">날짜</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-500">엔지니어</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-500">프로젝트</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-500">작업유형</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-500">제품</th>
@@ -115,7 +141,6 @@ export default function DashboardPage() {
                       <td className="py-3 px-4">
                         {new Date(log.work_start).toLocaleDateString('ko-KR')}
                       </td>
-                      <td className="py-3 px-4">{log.user?.name || '-'}</td>
                       <td className="py-3 px-4">{log.project?.project_name || '-'}</td>
                       <td className="py-3 px-4">{log.work_type}</td>
                       <td className="py-3 px-4">{log.product_type}</td>
@@ -151,8 +176,8 @@ function StatCard({ title, value, icon, color }) {
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex items-center gap-4">
-      <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl ${colorClasses[color]}`}>
-        {icon}
+      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${colorClasses[color]}`}>
+        <Icon name={icon} size={24} />
       </div>
       <div>
         <p className="text-sm text-gray-500">{title}</p>

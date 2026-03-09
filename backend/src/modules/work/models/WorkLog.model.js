@@ -5,8 +5,8 @@ const WorkLog = sequelize.define('WorkLog', {
   log_id: {
     type: DataTypes.INTEGER,
     primaryKey: true,
-    autoIncrement: true,
-    comment: '작업 로그 식별자',
+    autoIncrement: false,
+    comment: '작업 로그 식별자 (작업유형별 번호 체계)',
   },
   user_id: {
     type: DataTypes.INTEGER,
@@ -31,7 +31,7 @@ const WorkLog = sequelize.define('WorkLog', {
   work_type: {
     type: DataTypes.STRING(50),
     allowNull: false,
-    comment: '작업 유형(정기점검, 장애지원, 기술지원 등)',
+    comment: '작업 유형(정기점검, 장애지원, 기술지원, 프로젝트 지원, 기타)',
   },
   supprt_type: {
     type: DataTypes.STRING(50),
@@ -52,6 +52,11 @@ const WorkLog = sequelize.define('WorkLog', {
     type: DataTypes.STRING(50),
     allowNull: false,
     comment: '제품 버전 정보',
+  },
+  title: {
+    type: DataTypes.STRING(200),
+    allowNull: false,
+    comment: '작업 제목(요약)',
   },
   status: {
     type: DataTypes.STRING(10),

@@ -16,12 +16,12 @@ class WorkController {
     try {
       const {
         page = 1, limit = 20,
-        user_id, project_id, work_type, status,
+        user_id, project_id, dept_id, work_type, status,
         start_date, end_date, keyword,
       } = req.query;
 
       const result = await workService.findAll({
-        page, limit, user_id, project_id, work_type, status,
+        page, limit, user_id, project_id, dept_id, work_type, status,
         start_date, end_date, keyword,
       });
       sendPaginated(res, result, page, limit, '작업 로그 목록 조회 성공');

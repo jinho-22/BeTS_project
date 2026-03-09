@@ -23,10 +23,21 @@ const Project = sequelize.define('Project', {
     allowNull: false,
     comment: '프로젝트 명칭',
   },
-  contract_period: {
-    type: DataTypes.STRING(100),
+  contract_start: {
+    type: DataTypes.DATEONLY,
     allowNull: false,
-    comment: '계약 기간(문구)',
+    comment: '계약 시작일',
+  },
+  contract_end: {
+    type: DataTypes.DATEONLY,
+    allowNull: false,
+    comment: '계약 종료일',
+  },
+  acs_contract_time: {
+    type: DataTypes.DECIMAL(10, 1),
+    allowNull: true,
+    defaultValue: null,
+    comment: 'ACS 계약 시간(시간 단위)',
   },
   is_deleted: {
     type: DataTypes.BOOLEAN,

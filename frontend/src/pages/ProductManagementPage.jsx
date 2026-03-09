@@ -187,7 +187,7 @@ export default function ProductManagementPage() {
         ) : (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center text-gray-500">
             <p className="text-lg mb-2">등록된 제품이 없습니다.</p>
-            <p className="text-sm">제품을 등록하면 작업 로그 작성 시 선택할 수 있습니다.</p>
+            <p className="text-sm">제품을 등록하면 작업 내역 작성 시 선택할 수 있습니다.</p>
           </div>
         )}
       </div>

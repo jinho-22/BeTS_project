@@ -75,6 +75,24 @@ class AuthService {
       { expiresIn: env.jwt.refreshExpiresIn }
     );
   }
+
+  /**
+   * 비밀번호 변경
+   */
+  async changePassword(userId, currentPassword, newPassword) {
+    const user = await User.findByPk(userId);
+    if (!user) {
+      throw new AppError('사용자를 찾을 수 없습니다.', 404);
+    }
+
+    const isValid = await user.validatePassword(currentPassword);
+    if (!isValid) {
+      throw new AppError('현재 비밀번호가 올바르지 않습니다.', 401);
+    }
+
+    await user.update({ password: newPassword });
+    return true;
+  }
 }
 
 module.exports = new AuthService();

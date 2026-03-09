@@ -16,7 +16,7 @@ export default function ProjectListPage() {
   const [expandedProjectId, setExpandedProjectId] = useState(null);
   const [error, setError] = useState('');
 
-  const [projectForm, setProjectForm] = useState({ client_id: '', dept_id: '', project_name: '', contract_period: '' });
+  const [projectForm, setProjectForm] = useState({ client_id: '', dept_id: '', project_name: '', contract_start: '', contract_end: '', acs_contract_time: '' });
   const [contactForm, setContactForm] = useState({ project_id: '', name: '', email: '', phone: '' });
 
   const { data: projects, isLoading } = useQuery({
@@ -75,7 +75,7 @@ export default function ProjectListPage() {
 
   const openCreateProjectModal = () => {
     setEditingProject(null);
-    setProjectForm({ client_id: '', dept_id: '', project_name: '', contract_period: '' });
+    setProjectForm({ client_id: '', dept_id: '', project_name: '', contract_start: '', contract_end: '', acs_contract_time: '' });
     setError('');
     setShowProjectModal(true);
   };
@@ -87,7 +87,9 @@ export default function ProjectListPage() {
       client_id: project.client_id?.toString(),
       dept_id: project.dept_id?.toString(),
       project_name: project.project_name,
-      contract_period: project.contract_period,
+      contract_start: project.contract_start || '',
+      contract_end: project.contract_end || '',
+      acs_contract_time: project.acs_contract_time != null ? project.acs_contract_time.toString() : '',
     });
     setError('');
     setShowProjectModal(true);
@@ -116,9 +118,12 @@ export default function ProjectListPage() {
   const handleProjectSubmit = (e) => {
     e.preventDefault();
     const payload = {
-      ...projectForm,
       client_id: parseInt(projectForm.client_id),
       dept_id: parseInt(projectForm.dept_id),
+      project_name: projectForm.project_name,
+      contract_start: projectForm.contract_start,
+      contract_end: projectForm.contract_end,
+      acs_contract_time: projectForm.acs_contract_time !== '' ? parseFloat(projectForm.acs_contract_time) : null,
     };
     if (editingProject) {
       updateProjectMutation.mutate({ id: editingProject.project_id, payload });
@@ -164,6 +169,7 @@ export default function ProjectListPage() {
                   <th className="text-left py-3 px-4 font-medium text-gray-500">고객사</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-500">담당부서</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-500">계약기간</th>
+                  <th className="text-right py-3 px-4 font-medium text-gray-500">ACS 계약시간</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-500">담당자 수</th>
                   {isManager && <th className="text-right py-3 px-4 font-medium text-gray-500 w-48">관리</th>}
                 </tr>
@@ -189,7 +195,20 @@ export default function ProjectListPage() {
                         <td className="py-3 px-4 font-medium text-gray-900">{project.project_name}</td>
                         <td className="py-3 px-4">{project.client?.client_name || '-'}</td>
                         <td className="py-3 px-4">{project.department?.dept_name || '-'}</td>
-                        <td className="py-3 px-4 text-gray-500 text-xs">{project.contract_period}</td>
+                        <td className="py-3 px-4 text-gray-500 text-xs">
+                          {project.contract_start && project.contract_end
+                            ? `${project.contract_start} ~ ${project.contract_end}`
+                            : '-'}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          {project.acs_contract_time != null ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                              {project.acs_contract_time}시간
+                            </span>
+                          ) : (
+                            <span className="text-gray-300 text-xs">-</span>
+                          )}
+                        </td>
                         <td className="py-3 px-4">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${contacts.length > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                             {contacts.length}명
@@ -216,7 +235,7 @@ export default function ProjectListPage() {
                       {/* 확장 패널: 담당자 상세 정보 */}
                       {isExpanded && (
                         <tr>
-                          <td colSpan={isManager ? 7 : 6} className="p-0">
+                          <td colSpan={isManager ? 8 : 7} className="p-0">
                             <div className="bg-blue-50/30 border-t border-blue-100 px-8 py-4">
                               <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
                                 <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -336,10 +355,23 @@ export default function ProjectListPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">계약 기간 *</label>
-                <input type="text" value={projectForm.contract_period}
-                  onChange={(e) => setProjectForm(p => ({ ...p, contract_period: e.target.value }))} required
-                  placeholder="예: 2026.01.01 ~ 2026.12.31"
+                <div className="flex items-center gap-2">
+                  <input type="date" value={projectForm.contract_start}
+                    onChange={(e) => setProjectForm(p => ({ ...p, contract_start: e.target.value }))} required
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
+                  <span className="text-gray-400 text-sm">~</span>
+                  <input type="date" value={projectForm.contract_end}
+                    onChange={(e) => setProjectForm(p => ({ ...p, contract_end: e.target.value }))} required
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">ACS 계약 시간 (시간)</label>
+                <input type="number" step="0.1" min="0" value={projectForm.acs_contract_time}
+                  onChange={(e) => setProjectForm(p => ({ ...p, acs_contract_time: e.target.value }))}
+                  placeholder="미입력 시 ACS 미적용"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
+                <p className="text-xs text-gray-400 mt-1">ACS 계약이 있는 프로젝트만 입력하세요</p>
               </div>
               <div className="flex justify-end gap-2 pt-2">
                 <button type="button" onClick={closeProjectModal}

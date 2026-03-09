@@ -1,5 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../stores/authStore';
+import Icon from './Icons';
 
 export default function ProtectedRoute({ children, roles }) {
   const { isAuthenticated, user, _hasHydrated } = useAuthStore();
@@ -11,7 +12,7 @@ export default function ProtectedRoute({ children, roles }) {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-2xl mb-4 animate-pulse">
-            <span className="text-3xl">🛠️</span>
+            <Icon name="tools" size={32} className="text-blue-600" />
           </div>
           <p className="text-gray-500 text-sm">로딩 중...</p>
         </div>

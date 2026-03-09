@@ -103,16 +103,17 @@ CREATE TABLE `manager_contacts` (
 -- 7. 작업 로그 테이블
 -- ============================================================
 CREATE TABLE `work_log` (
-  `log_id` INT NOT NULL AUTO_INCREMENT COMMENT '작업 로그 식별자',
+  `log_id` INT NOT NULL COMMENT '작업 로그 식별자 (작업유형별 번호체계: 정기점검 10만대, 장애지원 30만대, 기술지원 50만대, 프로젝트지원 70만대, 기타 90만대)',
   `user_id` INT NOT NULL COMMENT '담당 직원 ID',
   `project_id` INT NOT NULL COMMENT '프로젝트 ID',
   `work_start` DATETIME NOT NULL COMMENT '작업시작일시',
   `work_end` DATETIME NOT NULL COMMENT '작업종료일시',
-  `work_type` VARCHAR(50) NOT NULL COMMENT '작업 유형(정기점검, 장애지원, 기술지원, 기타)',
+  `work_type` VARCHAR(50) NOT NULL COMMENT '작업 유형(정기점검, 장애지원, 기술지원, 프로젝트 지원, 기타)',
   `supprt_type` VARCHAR(50) NOT NULL COMMENT '지원 구분 (원격, 방문, 가이드 등)',
   `service_type` VARCHAR(50) NOT NULL COMMENT '서비스 유형 (DB, WEB/WAS 등)',
   `product_type` VARCHAR(50) NOT NULL COMMENT '제품명(Oracle, Tibero, Jeus 등)',
   `product_version` VARCHAR(50) NOT NULL COMMENT '제품 버전 정보',
+  `title` VARCHAR(200) NOT NULL COMMENT '작업 제목(요약)',
   `status` VARCHAR(10) NOT NULL DEFAULT '등록' COMMENT '결재/상태 (등록, 관리자확인, 승인완료 등)',
   `contact_id` INT NOT NULL COMMENT '요청자 ID',
   `details` TEXT NOT NULL COMMENT '상세 작업 내용 및 특이사항',
@@ -127,6 +128,22 @@ CREATE TABLE `work_log` (
   CONSTRAINT `fk_worklog_project` FOREIGN KEY (`project_id`) REFERENCES `projects` (`project_id`) ON UPDATE CASCADE ON DELETE RESTRICT,
   CONSTRAINT `fk_worklog_contact` FOREIGN KEY (`contact_id`) REFERENCES `manager_contacts` (`contact_id`) ON UPDATE CASCADE ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='작업 로그';
+
+-- ============================================================
+-- 7-1. 작업 로그 ID 시퀀스 테이블
+-- ============================================================
+CREATE TABLE `log_id_sequences` (
+  `work_type` VARCHAR(50) NOT NULL COMMENT '작업 유형',
+  `current_max` INT NOT NULL COMMENT '현재 최대 log_id',
+  PRIMARY KEY (`work_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='작업 로그 ID 시퀀스 관리';
+
+INSERT INTO `log_id_sequences` (`work_type`, `current_max`) VALUES
+  ('정기점검', 100000),
+  ('장애지원', 300000),
+  ('기술지원', 500000),
+  ('프로젝트 지원', 700000),
+  ('기타', 900000);
 
 -- ============================================================
 -- 8. 장애 테이블
