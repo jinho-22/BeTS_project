@@ -11,8 +11,10 @@
 -- ============================================================
 -- 기존 테이블 삭제 (순서 주의: FK 의존성 역순)
 -- ============================================================
+DROP TABLE IF EXISTS `work_log_comments`;
 DROP TABLE IF EXISTS `file_uploads`;
 DROP TABLE IF EXISTS `incidents`;
+DROP TABLE IF EXISTS `log_id_sequences`;
 DROP TABLE IF EXISTS `work_log`;
 DROP TABLE IF EXISTS `manager_contacts`;
 DROP TABLE IF EXISTS `projects`;
@@ -109,7 +111,8 @@ CREATE TABLE `work_log` (
   `work_start` DATETIME NOT NULL COMMENT '작업시작일시',
   `work_end` DATETIME NOT NULL COMMENT '작업종료일시',
   `work_type` VARCHAR(50) NOT NULL COMMENT '작업 유형(정기점검, 장애지원, 기술지원, 프로젝트 지원, 기타)',
-  `supprt_type` VARCHAR(50) NOT NULL COMMENT '지원 구분 (원격, 방문, 가이드 등)',
+  `sub_work_type` VARCHAR(50) NULL COMMENT '부 작업유형 (선택사항)',
+  `support_type` VARCHAR(50) NOT NULL COMMENT '지원 구분 (원격, 방문, 가이드 등)',
   `service_type` VARCHAR(50) NOT NULL COMMENT '서비스 유형 (DB, WEB/WAS 등)',
   `product_type` VARCHAR(50) NOT NULL COMMENT '제품명(Oracle, Tibero, Jeus 등)',
   `product_version` VARCHAR(50) NOT NULL COMMENT '제품 버전 정보',
@@ -179,6 +182,23 @@ CREATE TABLE `file_uploads` (
   CONSTRAINT `fk_files_worklog` FOREIGN KEY (`log_id`) REFERENCES `work_log` (`log_id`) ON UPDATE CASCADE ON DELETE CASCADE,
   CONSTRAINT `fk_files_user` FOREIGN KEY (`user`) REFERENCES `users` (`user_id`) ON UPDATE CASCADE ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='파일 업로드 정보';
+
+-- ============================================================
+-- 10. 작업 로그 코멘트/이력 테이블
+-- ============================================================
+CREATE TABLE `work_log_comments` (
+  `comment_id` INT NOT NULL AUTO_INCREMENT COMMENT '코멘트 식별자',
+  `log_id` INT NOT NULL COMMENT '작업 로그 ID',
+  `user_id` INT NOT NULL COMMENT '작성자(상태 변경자) ID',
+  `action_type` VARCHAR(20) NOT NULL COMMENT '액션 유형 (관리자확인, 승인완료, 반려)',
+  `comment` TEXT DEFAULT NULL COMMENT '코멘트 (반려 시 필수)',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '작성일시',
+  PRIMARY KEY (`comment_id`),
+  KEY `fk_comments_worklog` (`log_id`),
+  KEY `fk_comments_user` (`user_id`),
+  CONSTRAINT `fk_comments_worklog` FOREIGN KEY (`log_id`) REFERENCES `work_log` (`log_id`) ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT `fk_comments_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON UPDATE CASCADE ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='작업 로그 상태 변경 이력/코멘트';
 
 -- ============================================================
 -- 초기 데이터 (기본 부서 + 관리자 계정)

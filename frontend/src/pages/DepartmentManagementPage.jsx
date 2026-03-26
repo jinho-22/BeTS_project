@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Header from '../components/layout/Header';
 import api from '../lib/axios';
@@ -9,6 +9,7 @@ export default function DepartmentManagementPage() {
   const [editingDept, setEditingDept] = useState(null);
   const [formName, setFormName] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [expandedDept, setExpandedDept] = useState(null);
 
   // 부서 목록 조회
   const { data: departments, isLoading } = useQuery({
@@ -28,10 +29,12 @@ export default function DepartmentManagementPage() {
     },
   });
 
-  const getUserCountByDept = (deptId) => {
-    if (!users) return 0;
-    return users.filter(u => u.dept_id === deptId).length;
+  const getUsersByDept = (deptId) => {
+    if (!users) return [];
+    return users.filter(u => u.dept_id === deptId);
   };
+
+  const getUserCountByDept = (deptId) => getUsersByDept(deptId).length;
 
   // 부서 생성
   const createMutation = useMutation({
@@ -139,7 +142,67 @@ export default function DepartmentManagementPage() {
           <div className="text-center py-12 text-gray-500">로딩 중...</div>
         ) : departments?.length > 0 ? (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <table className="w-full">
+            {/* 모바일: 카드 레이아웃 */}
+            <div className="md:hidden divide-y divide-gray-100">
+              {departments.map((dept) => {
+                const userCount = getUserCountByDept(dept.dept_id);
+                const deptUsers = getUsersByDept(dept.dept_id);
+                const isExpanded = expandedDept === dept.dept_id;
+                return (
+                  <div key={dept.dept_id}>
+                    <div
+                      className="flex items-center justify-between p-4 cursor-pointer active:bg-gray-50"
+                      onClick={() => setExpandedDept(isExpanded ? null : dept.dept_id)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center text-white text-sm font-bold shrink-0">
+                          {dept.dept_name.charAt(0)}
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900 text-sm">{dept.dept_name}</p>
+                          <p className={`text-xs ${userCount > 0 ? 'text-green-600' : 'text-gray-400'}`}>{userCount}명</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <button onClick={() => openEditModal(dept)}
+                          className="px-2.5 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded-md font-medium">수정</button>
+                        <button onClick={() => handleDelete(dept)} disabled={userCount > 0}
+                          className={`px-2.5 py-1 text-xs rounded-md font-medium ${userCount > 0 ? 'text-gray-300' : 'text-red-600 hover:bg-red-50'}`}>삭제</button>
+                        <svg className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </div>
+                    {isExpanded && (
+                      <div className="px-4 pb-3">
+                        {deptUsers.length > 0 ? (
+                          <div className="space-y-2 ml-11">
+                            {deptUsers.map(u => (
+                              <div key={u.user_id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0">
+                                    {u.name?.charAt(0)}
+                                  </div>
+                                  <span className="text-xs font-medium text-gray-700">{u.name}</span>
+                                  <span className="text-xs text-gray-400">{u.position}</span>
+                                </div>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                                  u.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
+                                }`}>{u.is_active ? '활성' : '비활성'}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-400 ml-11">소속 인원이 없습니다.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {/* 데스크톱: 테이블 레이아웃 */}
+            <table className="hidden md:table w-full">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-200">
                   <th className="text-left py-3 px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider">ID</th>
@@ -151,8 +214,14 @@ export default function DepartmentManagementPage() {
               <tbody className="divide-y divide-gray-100">
                 {departments.map((dept) => {
                   const userCount = getUserCountByDept(dept.dept_id);
+                  const deptUsers = getUsersByDept(dept.dept_id);
+                  const isExpanded = expandedDept === dept.dept_id;
                   return (
-                    <tr key={dept.dept_id} className="hover:bg-gray-50 transition-colors">
+                    <Fragment key={dept.dept_id}>
+                    <tr
+                      className="hover:bg-gray-50 transition-colors cursor-pointer"
+                      onClick={() => setExpandedDept(isExpanded ? null : dept.dept_id)}
+                    >
                       <td className="py-4 px-6">
                         <span className="inline-flex items-center justify-center w-8 h-8 bg-blue-50 text-blue-700 rounded-lg text-sm font-semibold">
                           {dept.dept_id}
@@ -175,9 +244,12 @@ export default function DepartmentManagementPage() {
                               d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                           </svg>
                           {userCount}명
+                          <svg className={`w-3 h-3 ml-0.5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
                         </span>
                       </td>
-                      <td className="py-4 px-6 text-right">
+                      <td className="py-4 px-6 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => openEditModal(dept)}
@@ -208,6 +280,50 @@ export default function DepartmentManagementPage() {
                         </div>
                       </td>
                     </tr>
+                    {isExpanded && (
+                      <tr className="bg-gray-50/50">
+                        <td colSpan={4} className="px-6 py-3">
+                          {deptUsers.length > 0 ? (
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="text-gray-400">
+                                  <th className="text-left py-1 pr-4 font-medium">이름</th>
+                                  <th className="text-left py-1 pr-4 font-medium">직급</th>
+                                  <th className="text-left py-1 pr-4 font-medium">이메일</th>
+                                  <th className="text-left py-1 font-medium">상태</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {deptUsers.map(u => (
+                                  <tr key={u.user_id} className="text-gray-600">
+                                    <td className="py-1.5 pr-4">
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0">
+                                          {u.name?.charAt(0)}
+                                        </div>
+                                        <span className="font-medium">{u.name}</span>
+                                      </div>
+                                    </td>
+                                    <td className="py-1.5 pr-4 text-gray-500">{u.position}</td>
+                                    <td className="py-1.5 pr-4 text-gray-400">{u.email}</td>
+                                    <td className="py-1.5">
+                                      <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                        u.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
+                                      }`}>
+                                        {u.is_active ? '활성' : '비활성'}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          ) : (
+                            <p className="text-xs text-gray-400">소속 인원이 없습니다.</p>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   );
                 })}
               </tbody>

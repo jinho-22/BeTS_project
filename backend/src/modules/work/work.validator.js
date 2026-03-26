@@ -15,7 +15,11 @@ const createWorkLogSchema = {
     work_start: Joi.date().iso().required(),
     work_end: Joi.date().iso().required(),
     work_type: Joi.string().valid('정기점검', '장애지원', '기술지원', '프로젝트 지원', '기타').required(),
-    supprt_type: Joi.string().max(50).required(),
+    sub_work_type: Joi.alternatives().try(
+      Joi.array().items(Joi.string().valid('정기점검', '장애지원', '기술지원', '프로젝트 지원', '기타')),
+      Joi.string().allow(null, ''),
+    ).optional(),
+    support_type: Joi.string().max(50).required(),
     service_type: Joi.string().max(50).required(),
     product_type: Joi.string().max(50).required(),
     product_version: Joi.string().max(50).required(),
@@ -32,7 +36,11 @@ const updateWorkLogSchema = {
     work_start: Joi.date().iso(),
     work_end: Joi.date().iso(),
     work_type: Joi.string().valid('정기점검', '장애지원', '기술지원', '프로젝트 지원', '기타'),
-    supprt_type: Joi.string().max(50),
+    sub_work_type: Joi.alternatives().try(
+      Joi.array().items(Joi.string().valid('정기점검', '장애지원', '기술지원', '프로젝트 지원', '기타')),
+      Joi.string().allow(null, ''),
+    ).optional(),
+    support_type: Joi.string().max(50),
     service_type: Joi.string().max(50),
     product_type: Joi.string().max(50),
     product_version: Joi.string().max(50),
@@ -49,6 +57,7 @@ const updateWorkLogSchema = {
 const changeStatusSchema = {
   body: Joi.object({
     status: Joi.string().valid('등록', '관리자확인', '승인완료').required(),
+    comment: Joi.string().max(1000).allow('', null),
   }),
   params: Joi.object({
     id: Joi.number().integer().required(),
@@ -67,6 +76,7 @@ const querySchema = {
     start_date: Joi.date().iso(),
     end_date: Joi.date().iso(),
     keyword: Joi.string().max(200),
+    is_recurrence: Joi.string().valid('Y', 'N'),
   }),
 };
 

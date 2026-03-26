@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, Fragment } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Header from '../components/layout/Header';
 import Icon from '../components/common/Icons';
@@ -8,6 +8,7 @@ const TABS = [
   { key: 'project', label: '프로젝트별', icon: 'folder' },
   { key: 'engineer', label: '엔지니어별', icon: 'developer' },
   { key: 'department', label: '부서별', icon: 'building' },
+  { key: 'overtime', label: '야간/주말', icon: 'clock' },
 ];
 
 const WORK_TYPES = [
@@ -130,6 +131,7 @@ export default function StatisticsPage() {
                 {activeTab === 'project' && <ProjectTab data={stats.byProject} searchQuery={searchQuery} />}
                 {activeTab === 'engineer' && <EngineerTab data={stats.byEngineer} searchQuery={searchQuery} />}
                 {activeTab === 'department' && <DepartmentTab data={stats.byDepartment} searchQuery={searchQuery} />}
+                {activeTab === 'overtime' && <OvertimeTab data={stats.overtime} searchQuery={searchQuery} />}
               </>
             ) : (
               <div className="text-center py-16 text-gray-400">데이터가 없습니다.</div>
@@ -644,6 +646,138 @@ function DepartmentTab({ data, searchQuery }) {
       {filtered.length === 0 && searchQuery && (
         <div className="text-center py-8 text-gray-400 text-sm">검색 결과가 없습니다.</div>
       )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════
+   야간/주말 탭
+   ═══════════════════════════════════════════════ */
+function OvertimeTab({ data, searchQuery }) {
+  if (!data) return <EmptyState message="야간/주말 작업 데이터가 없습니다." />;
+
+  const { byEngineer, summary } = data;
+  const filtered = byEngineer.filter(e =>
+    !searchQuery || e.user_name?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const summaryCards = [
+    { label: '야간 작업', count: summary.totalNightCount, hours: summary.totalNightHours, color: 'bg-indigo-500', light: 'bg-indigo-50', text: 'text-indigo-700' },
+    { label: '주말 작업', count: summary.totalWeekendCount, hours: summary.totalWeekendHours, color: 'bg-orange-500', light: 'bg-orange-50', text: 'text-orange-700' },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* 요약 카드 */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {summaryCards.map(card => (
+          <Fragment key={card.label}>
+            <div className={`${card.light} rounded-xl p-4`}>
+              <p className={`text-xs font-medium ${card.text} mb-1`}>{card.label} 건수</p>
+              <p className="text-2xl font-bold text-gray-900">{card.count}<span className="text-sm font-normal text-gray-500 ml-1">건</span></p>
+            </div>
+            <div className={`${card.light} rounded-xl p-4`}>
+              <p className={`text-xs font-medium ${card.text} mb-1`}>{card.label} 시간</p>
+              <p className="text-2xl font-bold text-gray-900">{card.hours}<span className="text-sm font-normal text-gray-500 ml-1">h</span></p>
+            </div>
+          </Fragment>
+        ))}
+      </div>
+
+      {/* 엔지니어별 테이블 */}
+      <div>
+        <h4 className="text-sm font-semibold text-gray-700 mb-3">엔지니어별 야간/주말 작업 현황</h4>
+
+        {/* 모바일: 카드 */}
+        <div className="md:hidden space-y-2">
+          {filtered.length > 0 ? filtered.map(e => (
+            <div key={e.user_id} className="bg-white border border-gray-200 rounded-lg p-3">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <span className="font-medium text-sm text-gray-800">{e.user_name}</span>
+                  <span className="text-xs text-gray-400 ml-2">{e.position} / {e.dept_name}</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                <div className="bg-indigo-50 rounded-lg py-1.5">
+                  <p className="text-indigo-600 font-medium">야간</p>
+                  <p className="font-bold text-gray-800">{e.night_count}건 / {e.night_hours}h</p>
+                </div>
+                <div className="bg-orange-50 rounded-lg py-1.5">
+                  <p className="text-orange-600 font-medium">주말</p>
+                  <p className="font-bold text-gray-800">{e.weekend_count}건 / {e.weekend_hours}h</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg py-1.5">
+                  <p className="text-gray-500 font-medium">전체</p>
+                  <p className="font-bold text-gray-800">{e.total_count}건 / {e.total_hours}h</p>
+                </div>
+              </div>
+            </div>
+          )) : (
+            <div className="text-center py-8 text-gray-400 text-sm">검색 결과가 없습니다.</div>
+          )}
+        </div>
+
+        {/* 데스크톱: 테이블 */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-500">엔지니어</th>
+                <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500">부서</th>
+                <th className="text-center py-2.5 px-3 text-xs font-semibold text-indigo-600">야간 건수</th>
+                <th className="text-center py-2.5 px-3 text-xs font-semibold text-indigo-600">야간 시간</th>
+                <th className="text-center py-2.5 px-3 text-xs font-semibold text-orange-600">주말 건수</th>
+                <th className="text-center py-2.5 px-3 text-xs font-semibold text-orange-600">주말 시간</th>
+                <th className="text-center py-2.5 px-3 text-xs font-semibold text-gray-500">전체 건수</th>
+                <th className="text-center py-2.5 px-3 text-xs font-semibold text-gray-500">전체 시간</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {filtered.map(e => (
+                <tr key={e.user_id} className="hover:bg-gray-50">
+                  <td className="py-2.5 px-4">
+                    <span className="font-medium text-gray-800">{e.user_name}</span>
+                    <span className="text-xs text-gray-400 ml-1">{e.position}</span>
+                  </td>
+                  <td className="py-2.5 px-3 text-gray-500">{e.dept_name}</td>
+                  <td className="py-2.5 px-3 text-center">
+                    {e.night_count > 0 ? <span className="text-indigo-700 font-medium">{e.night_count}</span> : <span className="text-gray-300">-</span>}
+                  </td>
+                  <td className="py-2.5 px-3 text-center">
+                    {e.night_hours > 0 ? <span className="text-indigo-700 font-bold">{e.night_hours}h</span> : <span className="text-gray-300">-</span>}
+                  </td>
+                  <td className="py-2.5 px-3 text-center">
+                    {e.weekend_count > 0 ? <span className="text-orange-700 font-medium">{e.weekend_count}</span> : <span className="text-gray-300">-</span>}
+                  </td>
+                  <td className="py-2.5 px-3 text-center">
+                    {e.weekend_hours > 0 ? <span className="text-orange-700 font-bold">{e.weekend_hours}h</span> : <span className="text-gray-300">-</span>}
+                  </td>
+                  <td className="py-2.5 px-3 text-center text-gray-600">{e.total_count}</td>
+                  <td className="py-2.5 px-3 text-center font-bold text-gray-700">{e.total_hours}h</td>
+                </tr>
+              ))}
+              {/* 합계 */}
+              <tr className="bg-gray-100 border-t-2 border-gray-300 font-bold">
+                <td className="py-2.5 px-4 text-gray-800">합계 ({filtered.length}명)</td>
+                <td className="py-2.5 px-3"></td>
+                <td className="py-2.5 px-3 text-center text-indigo-700">{filtered.reduce((s, e) => s + e.night_count, 0)}</td>
+                <td className="py-2.5 px-3 text-center text-indigo-700">{Math.round(filtered.reduce((s, e) => s + e.night_hours, 0) * 10) / 10}h</td>
+                <td className="py-2.5 px-3 text-center text-orange-700">{filtered.reduce((s, e) => s + e.weekend_count, 0)}</td>
+                <td className="py-2.5 px-3 text-center text-orange-700">{Math.round(filtered.reduce((s, e) => s + e.weekend_hours, 0) * 10) / 10}h</td>
+                <td className="py-2.5 px-3 text-center text-gray-700">{filtered.reduce((s, e) => s + e.total_count, 0)}</td>
+                <td className="py-2.5 px-3 text-center text-gray-700">{Math.round(filtered.reduce((s, e) => s + e.total_hours, 0) * 10) / 10}h</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {filtered.length === 0 && searchQuery && (
+          <div className="hidden md:block text-center py-8 text-gray-400 text-sm">검색 결과가 없습니다.</div>
+        )}
+      </div>
+
+      <p className="text-xs text-gray-400">* 야간: 18:00~09:00 / 주말: 토·일요일 (work_start 기준)</p>
     </div>
   );
 }

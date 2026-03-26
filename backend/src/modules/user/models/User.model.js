@@ -50,6 +50,12 @@ const User = sequelize.define('User', {
     defaultValue: true,
     comment: '계정 활성화/퇴사 여부',
   },
+  must_change_password: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: true,
+    comment: '최초 로그인 시 비밀번호 변경 필요 여부',
+  },
 }, {
   tableName: 'users',
   timestamps: false,
