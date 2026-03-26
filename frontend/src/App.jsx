@@ -15,6 +15,7 @@ import DepartmentManagementPage from './pages/DepartmentManagementPage';
 import ProductManagementPage from './pages/ProductManagementPage';
 import StatisticsPage from './pages/StatisticsPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
+import SetupPage from './pages/SetupPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -39,6 +40,7 @@ export default function App() {
           <Routes>
             {/* 공개 라우트 */}
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/setup" element={<SetupPage />} />
 
             {/* 인증 필요 라우트 */}
             <Route

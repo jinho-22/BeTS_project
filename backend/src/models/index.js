@@ -18,6 +18,10 @@ const Product = require('../modules/project/models/Product.model');
 const WorkLog = require('../modules/work/models/WorkLog.model');
 const Incident = require('../modules/work/models/Incident.model');
 const FileUpload = require('../modules/work/models/FileUpload.model');
+const WorkLogComment = require('../modules/work/models/WorkLogComment.model');
+
+// ─── Notification Domain ────────────────────
+const Notification = require('../modules/notification/Notification.model');
 
 // ════════════════════════════════════════════
 // Association 정의
@@ -66,6 +70,26 @@ FileUpload.belongsTo(WorkLog, { foreignKey: 'log_id', as: 'workLog' });
 User.hasMany(FileUpload, { foreignKey: 'user', as: 'uploadedFiles' });
 FileUpload.belongsTo(User, { foreignKey: 'user', as: 'uploader' });
 
+// WorkLog 1:N WorkLogComment
+WorkLog.hasMany(WorkLogComment, { foreignKey: 'log_id', as: 'comments' });
+WorkLogComment.belongsTo(WorkLog, { foreignKey: 'log_id', as: 'workLog' });
+
+// User 1:N WorkLogComment
+User.hasMany(WorkLogComment, { foreignKey: 'user_id', as: 'statusComments' });
+WorkLogComment.belongsTo(User, { foreignKey: 'user_id', as: 'author' });
+
+// ── Notification Domain ──────────────────────
+// User 1:N Notification (받는 사람)
+User.hasMany(Notification, { foreignKey: 'user_id', as: 'notifications' });
+Notification.belongsTo(User, { foreignKey: 'user_id', as: 'recipient' });
+
+// User 1:N Notification (보낸 사람)
+Notification.belongsTo(User, { foreignKey: 'from_user_id', as: 'sender' });
+
+// WorkLog 1:N Notification
+WorkLog.hasMany(Notification, { foreignKey: 'log_id', as: 'notifications' });
+Notification.belongsTo(WorkLog, { foreignKey: 'log_id', as: 'workLog' });
+
 module.exports = {
   sequelize,
   User,
@@ -77,4 +101,6 @@ module.exports = {
   WorkLog,
   Incident,
   FileUpload,
+  WorkLogComment,
+  Notification,
 };

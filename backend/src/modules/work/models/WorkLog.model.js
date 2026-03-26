@@ -33,7 +33,12 @@ const WorkLog = sequelize.define('WorkLog', {
     allowNull: false,
     comment: '작업 유형(정기점검, 장애지원, 기술지원, 프로젝트 지원, 기타)',
   },
-  supprt_type: {
+  sub_work_type: {
+    type: DataTypes.STRING(200),
+    allowNull: true,
+    comment: '부 작업유형 (콤마 구분, 복수 선택 가능)',
+  },
+  support_type: {
     type: DataTypes.STRING(50),
     allowNull: false,
     comment: '지원 구분 (원격, 방문, 가이드 등)',

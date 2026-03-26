@@ -37,6 +37,7 @@ class AuthService {
       user: user.toJSON(),
       accessToken,
       refreshToken,
+      mustChangePassword: !!user.must_change_password,
     };
   }
 
@@ -90,7 +91,7 @@ class AuthService {
       throw new AppError('현재 비밀번호가 올바르지 않습니다.', 401);
     }
 
-    await user.update({ password: newPassword });
+    await user.update({ password: newPassword, must_change_password: false });
     return true;
   }
 }

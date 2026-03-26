@@ -5,28 +5,25 @@ export const useAuthStore = create(
   persist(
     (set) => ({
       user: null,
-      accessToken: null,
-      refreshToken: null,
       isAuthenticated: false,
+      mustChangePassword: false,
       _hasHydrated: false,
 
-      login: (user, accessToken, refreshToken) =>
+      login: (user, mustChangePassword = false) =>
         set({
           user,
-          accessToken,
-          refreshToken,
           isAuthenticated: true,
+          mustChangePassword,
         }),
 
-      setAccessToken: (accessToken) =>
-        set({ accessToken }),
+      clearMustChangePassword: () =>
+        set({ mustChangePassword: false }),
 
       logout: () =>
         set({
           user: null,
-          accessToken: null,
-          refreshToken: null,
           isAuthenticated: false,
+          mustChangePassword: false,
         }),
 
       updateUser: (userData) =>
@@ -38,8 +35,6 @@ export const useAuthStore = create(
       name: 'bets-auth',
       partialize: (state) => ({
         user: state.user,
-        accessToken: state.accessToken,
-        refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
       }),
     }

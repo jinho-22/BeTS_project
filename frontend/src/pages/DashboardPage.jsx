@@ -70,7 +70,7 @@ export default function DashboardPage() {
         </div>
 
         {/* 통계 카드 */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
           <StatCard title="전체 작업" value={totalData?.pagination?.total ?? '-'} icon="clipboard" color="blue" />
           <StatCard title="등록" value={registeredData?.pagination?.total ?? '-'} icon="memo" color="yellow" />
           <StatCard title="관리자확인" value={checkedData?.pagination?.total ?? '-'} icon="eye" color="purple" />
@@ -78,10 +78,10 @@ export default function DashboardPage() {
         </div>
 
         {/* 빠른 액션 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Link to="/work/new" className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:border-blue-300 hover:shadow-md transition-all group">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+          <Link to="/work/new" className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5 hover:border-blue-300 hover:shadow-md transition-all group">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center group-hover:bg-blue-200 transition-colors">
+              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center group-hover:bg-blue-200 transition-colors shrink-0">
                 <Icon name="memo" size={20} className="text-blue-600" />
               </div>
               <div>
@@ -90,9 +90,9 @@ export default function DashboardPage() {
               </div>
             </div>
           </Link>
-          <Link to="/clients" className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:border-blue-300 hover:shadow-md transition-all group">
+          <Link to="/clients" className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5 hover:border-blue-300 hover:shadow-md transition-all group">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center group-hover:bg-green-200 transition-colors">
+              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center group-hover:bg-green-200 transition-colors shrink-0">
                 <Icon name="building" size={20} className="text-green-600" />
               </div>
               <div>
@@ -101,9 +101,9 @@ export default function DashboardPage() {
               </div>
             </div>
           </Link>
-          <Link to="/work" className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:border-blue-300 hover:shadow-md transition-all group">
+          <Link to="/work" className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-5 hover:border-blue-300 hover:shadow-md transition-all group">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center group-hover:bg-purple-200 transition-colors">
+              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center group-hover:bg-purple-200 transition-colors shrink-0">
                 <Icon name="clipboard" size={20} className="text-purple-600" />
               </div>
               <div>
@@ -115,43 +115,66 @@ export default function DashboardPage() {
         </div>
 
         {/* 최근 작업 내역 */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-800">최근 작업 내역</h3>
+            <h3 className="text-base sm:text-lg font-semibold text-gray-800">최근 작업 내역</h3>
             <Link to="/work" className="text-sm text-blue-600 hover:text-blue-800">전체 보기 →</Link>
           </div>
           {isLoading ? (
             <div className="text-center py-8 text-gray-500">로딩 중...</div>
           ) : workLogs?.data?.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left py-3 px-4 font-medium text-gray-500">날짜</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-500">프로젝트</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-500">작업유형</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-500">제품</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-500">상태</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {workLogs.data.map((log) => (
-                    <tr key={log.log_id} className="hover:bg-gray-50 cursor-pointer"
-                      onClick={() => navigate(`/work/${log.log_id}`)}>
-                      <td className="py-3 px-4">
-                        {new Date(log.work_start).toLocaleDateString('ko-KR')}
-                      </td>
-                      <td className="py-3 px-4">{log.project?.project_name || '-'}</td>
-                      <td className="py-3 px-4">{log.work_type}</td>
-                      <td className="py-3 px-4">{log.product_type}</td>
-                      <td className="py-3 px-4">
-                        <StatusBadge status={log.status} />
-                      </td>
+            <>
+              {/* 모바일: 카드 레이아웃 */}
+              <div className="sm:hidden space-y-3">
+                {workLogs.data.map((log) => (
+                  <div key={log.log_id}
+                    className="border border-gray-200 rounded-lg p-3 hover:bg-gray-50 cursor-pointer active:bg-gray-100"
+                    onClick={() => navigate(`/work/${log.log_id}`)}>
+                    <div className="flex items-start justify-between gap-2 mb-1.5">
+                      <p className="font-medium text-sm text-gray-800 line-clamp-1">{log.project?.project_name || '-'}</p>
+                      <StatusBadge status={log.status} />
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <span>{new Date(log.work_start).toLocaleDateString('ko-KR')}</span>
+                      <span className="text-gray-300">|</span>
+                      <span>{log.work_type}</span>
+                      <span className="text-gray-300">|</span>
+                      <span>{log.product_type}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* 데스크톱: 테이블 레이아웃 */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left py-3 px-4 font-medium text-gray-500">날짜</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-500">프로젝트</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-500">작업유형</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-500">제품</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-500">상태</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {workLogs.data.map((log) => (
+                      <tr key={log.log_id} className="hover:bg-gray-50 cursor-pointer"
+                        onClick={() => navigate(`/work/${log.log_id}`)}>
+                        <td className="py-3 px-4">
+                          {new Date(log.work_start).toLocaleDateString('ko-KR')}
+                        </td>
+                        <td className="py-3 px-4">{log.project?.project_name || '-'}</td>
+                        <td className="py-3 px-4">{log.work_type}</td>
+                        <td className="py-3 px-4">{log.product_type}</td>
+                        <td className="py-3 px-4">
+                          <StatusBadge status={log.status} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           ) : (
             <div className="text-center py-8 text-gray-500">
               <p className="mb-2">등록된 작업 내역이 없습니다.</p>
@@ -175,13 +198,14 @@ function StatCard({ title, value, icon, color }) {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex items-center gap-4">
-      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${colorClasses[color]}`}>
-        <Icon name={icon} size={24} />
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-6 flex items-center gap-3 sm:gap-4">
+      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shrink-0 ${colorClasses[color]}`}>
+        <Icon name={icon} size={20} className="sm:hidden" />
+        <Icon name={icon} size={24} className="hidden sm:block" />
       </div>
       <div>
-        <p className="text-sm text-gray-500">{title}</p>
-        <p className="text-2xl font-bold text-gray-900">{value}</p>
+        <p className="text-xs sm:text-sm text-gray-500">{title}</p>
+        <p className="text-xl sm:text-2xl font-bold text-gray-900">{value}</p>
       </div>
     </div>
   );

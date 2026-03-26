@@ -2,7 +2,7 @@ const { Op } = require('sequelize');
 const sequelize = require('../../config/database');
 const AppError = require('../../shared/utils/AppError');
 const {
-  WorkLog, Incident, FileUpload, User, Project, Client, ManagerContact, Department,
+  WorkLog, Incident, FileUpload, User, Project, Client, ManagerContact, Department, WorkLogComment, Notification,
 } = require('../../models');
 
 // 장애 관련 작업 유형
@@ -87,8 +87,15 @@ class WorkService {
     const transaction = await sequelize.transaction();
 
     try {
-      // 1. 장애 관련 작업 유형 검증
-      if (INCIDENT_WORK_TYPES.includes(workData.work_type)) {
+      // sub_work_type: 배열이면 콤마 문자열로 변환
+      if (Array.isArray(workData.sub_work_type)) {
+        workData.sub_work_type = workData.sub_work_type.filter(Boolean).join(',') || null;
+      }
+
+      // 1. 장애 관련 작업 유형 검증 (주 유형 또는 부 유형에 장애지원 포함 시)
+      const allTypes = [workData.work_type, ...(workData.sub_work_type || '').split(',')].filter(Boolean);
+      const hasIncident = allTypes.some(t => INCIDENT_WORK_TYPES.includes(t));
+      if (hasIncident) {
         if (!incidentData) {
           throw new AppError('장애 관련 작업 유형에는 장애 상세 정보가 필수입니다.', 400);
         }
@@ -132,7 +139,7 @@ class WorkService {
   /**
    * 작업 로그 목록 조회 (필터링/검색/페이징)
    */
-  async findAll({ page = 1, limit = 20, user_id, project_id, dept_id, work_type, status, product_type, start_date, end_date, keyword }) {
+  async findAll({ page = 1, limit = 20, user_id, project_id, dept_id, work_type, status, product_type, start_date, end_date, keyword, is_recurrence }) {
     const offset = (page - 1) * limit;
     const where = {};
 
@@ -142,20 +149,8 @@ class WorkService {
     if (status) where.status = status;
     if (product_type) where.product_type = product_type;
 
-    // 날짜 필터 (end_date는 해당일 끝까지 포함)
-    if (start_date && end_date) {
-      const endDateFull = new Date(end_date);
-      endDateFull.setHours(23, 59, 59, 999);
-      where.work_start = {
-        [Op.between]: [new Date(start_date), endDateFull],
-      };
-    } else if (start_date) {
-      where.work_start = { [Op.gte]: new Date(start_date) };
-    } else if (end_date) {
-      const endDateFull = new Date(end_date);
-      endDateFull.setHours(23, 59, 59, 999);
-      where.work_start = { [Op.lte]: endDateFull };
-    }
+    // 날짜 필터 (검증된 헬퍼 사용)
+    Object.assign(where, this._buildDateWhere(start_date, end_date));
 
     // 키워드 검색
     if (keyword) {
@@ -172,6 +167,13 @@ class WorkService {
       projectInclude.required = true;
     }
 
+    // 장애 재발여부 필터
+    const incidentInclude = { model: Incident, as: 'incident' };
+    if (is_recurrence) {
+      incidentInclude.where = { is_recurrence };
+      incidentInclude.required = true;
+    }
+
     return WorkLog.findAndCountAll({
       where,
       limit: parseInt(limit, 10),
@@ -181,7 +183,7 @@ class WorkService {
         { model: User, as: 'user', attributes: ['user_id', 'name', 'email', 'position'] },
         projectInclude,
         { model: ManagerContact, as: 'contact' },
-        { model: Incident, as: 'incident' },
+        incidentInclude,
         { model: FileUpload, as: 'files' },
       ],
     });
@@ -205,6 +207,11 @@ class WorkService {
         { model: ManagerContact, as: 'contact' },
         { model: Incident, as: 'incident' },
         { model: FileUpload, as: 'files' },
+        {
+          model: WorkLogComment, as: 'comments',
+          include: [{ model: User, as: 'author', attributes: ['user_id', 'name'] }],
+          order: [['created_at', 'DESC']],
+        },
       ],
     });
 
@@ -217,7 +224,7 @@ class WorkService {
   /**
    * 작업 로그 수정 (트랜잭션 적용)
    */
-  async update(logId, workData, incidentData, userId) {
+  async update(logId, workData, incidentData, userId, userRole) {
     const transaction = await sequelize.transaction();
 
     try {
@@ -227,16 +234,27 @@ class WorkService {
         throw new AppError('작업 로그를 찾을 수 없습니다.', 404);
       }
 
-      // 본인 작성 또는 관리자만 수정 가능 (컨트롤러에서 처리)
+      // 소유권 검증: 관리자/매니저가 아니면 본인 작성분만 수정 가능
+      if (workLog.user_id !== userId && !['admin', 'manager'].includes(userRole)) {
+        throw new AppError('본인의 작업 내역만 수정할 수 있습니다.', 403);
+      }
 
       // 0. 작업 유형 변경 방지 (log_id 번호 체계와 연동되므로 변경 불가)
       if (workData.work_type && workData.work_type !== workLog.work_type) {
         throw new AppError('작업 유형은 생성 후 변경할 수 없습니다. 삭제 후 재등록해 주세요.', 400);
       }
 
-      // 1. 장애 관련 작업 유형 검증
+      // sub_work_type: 배열이면 콤마 문자열로 변환
+      if (Array.isArray(workData.sub_work_type)) {
+        workData.sub_work_type = workData.sub_work_type.filter(Boolean).join(',') || null;
+      }
+
+      // 1. 장애 관련 작업 유형 검증 (주 유형 또는 부 유형에 장애지원 포함 시)
       const workType = workData.work_type || workLog.work_type;
-      if (INCIDENT_WORK_TYPES.includes(workType) && incidentData) {
+      const subTypes = (workData.sub_work_type || workLog.sub_work_type || '').split(',').filter(Boolean);
+      const allTypes = [workType, ...subTypes];
+      const hasIncident = allTypes.some(t => INCIDENT_WORK_TYPES.includes(t));
+      if (hasIncident && incidentData) {
         if (!incidentData.severity || !incidentData.cause_type) {
           throw new AppError('장애 상세의 영향도(severity)와 원인분류(cause_type)는 필수입니다.', 400);
         }
@@ -267,6 +285,23 @@ class WorkService {
       }
 
       await transaction.commit();
+
+      // 반려 후 수정 시 → 반려한 관리자/매니저에게 알림
+      const lastRejectComment = await WorkLogComment.findOne({
+        where: { log_id: logId, action_type: '반려' },
+        order: [['created_at', 'DESC']],
+      });
+      if (lastRejectComment && lastRejectComment.user_id !== userId) {
+        const editor = await User.findByPk(userId, { attributes: ['name'] });
+        await Notification.create({
+          user_id: lastRejectComment.user_id,
+          type: 'revised',
+          log_id: logId,
+          from_user_id: userId,
+          message: `${editor?.name || '작성자'}님이 반려된 작업 내역 [${workLog.title}]을(를) 수정했습니다.`,
+        });
+      }
+
       return this.findById(logId);
     } catch (error) {
       await transaction.rollback();
@@ -278,7 +313,7 @@ class WorkService {
    * 상태 변경 (상태 머신 적용)
    * 등록 -> 관리자확인 -> 승인완료
    */
-  async changeStatus(logId, newStatus, userId) {
+  async changeStatus(logId, newStatus, userId, comment) {
     const workLog = await WorkLog.findByPk(logId);
 
     if (!workLog) {
@@ -295,17 +330,64 @@ class WorkService {
       );
     }
 
-    return workLog.update({ status: newStatus });
+    // 반려 시 코멘트 필수
+    const isRejection = currentStatus === '관리자확인' && newStatus === '등록';
+    if (isRejection && (!comment || !comment.trim())) {
+      throw new AppError('반려 시 사유를 입력해야 합니다.', 400);
+    }
+
+    const actionType = isRejection ? '반려' : newStatus;
+
+    await workLog.update({ status: newStatus });
+
+    // 상태 변경 이력 저장
+    await WorkLogComment.create({
+      log_id: logId,
+      user_id: userId,
+      action_type: actionType,
+      comment: comment?.trim() || null,
+    });
+
+    // 알림 생성
+    const fromUser = await User.findByPk(userId, { attributes: ['name'] });
+    const fromName = fromUser?.name || '관리자';
+
+    if (isRejection) {
+      // 반려 → 작성자에게 알림
+      await Notification.create({
+        user_id: workLog.user_id,
+        type: 'rejected',
+        log_id: logId,
+        from_user_id: userId,
+        message: `${fromName}님이 작업 내역 [${workLog.title}]을(를) 반려했습니다.${comment ? ' 사유: ' + comment.trim() : ''}`,
+      });
+    } else if (newStatus === '관리자확인' || newStatus === '승인완료') {
+      // 상태 변경 → 작성자에게 알림
+      await Notification.create({
+        user_id: workLog.user_id,
+        type: 'status_changed',
+        log_id: logId,
+        from_user_id: userId,
+        message: `${fromName}님이 작업 내역 [${workLog.title}]을(를) '${newStatus}' 상태로 변경했습니다.`,
+      });
+    }
+
+    return workLog;
   }
 
   /**
    * 작업 로그 삭제 (등록 상태일 때만 가능)
    */
-  async delete(logId) {
+  async delete(logId, userId, userRole) {
     const workLog = await WorkLog.findByPk(logId);
 
     if (!workLog) {
       throw new AppError('작업 로그를 찾을 수 없습니다.', 404);
+    }
+
+    // 소유권 검증: 관리자/매니저가 아니면 본인 작성분만 삭제 가능
+    if (workLog.user_id !== userId && !['admin', 'manager'].includes(userRole)) {
+      throw new AppError('본인의 작업 내역만 삭제할 수 있습니다.', 403);
     }
 
     if (workLog.status !== '등록') {
@@ -342,20 +424,7 @@ class WorkService {
    * 통계 조회 (기본 - 대시보드용)
    */
   async getStatistics({ start_date, end_date }) {
-    const where = {};
-    if (start_date && end_date) {
-      const endDateFull = new Date(end_date);
-      endDateFull.setHours(23, 59, 59, 999);
-      where.work_start = {
-        [Op.between]: [new Date(start_date), endDateFull],
-      };
-    } else if (start_date) {
-      where.work_start = { [Op.gte]: new Date(start_date) };
-    } else if (end_date) {
-      const endDateFull = new Date(end_date);
-      endDateFull.setHours(23, 59, 59, 999);
-      where.work_start = { [Op.lte]: endDateFull };
-    }
+    const where = this._buildDateWhere(start_date, end_date);
 
     const [totalCount, byStatusRaw, byWorkTypeRaw, byUserRaw] = await Promise.all([
       WorkLog.count({ where }),
@@ -398,54 +467,131 @@ class WorkService {
   }
 
   /**
-   * 상세 통계 조회 (통계 페이지용)
-   * 엔지니어별, 부서별, 고객사별 작업유형 교차 통계 + 장애 상세
+   * 날짜 입력값 검증 (SQL Injection 방지)
+   * ISO 8601 날짜 형식(YYYY-MM-DD)만 허용
    */
-  async getDetailedStatistics({ start_date, end_date }) {
-    // 날짜 조건 생성
-    let dateCondition = '';
+  _validateDateInput(dateStr) {
+    if (!dateStr) return null;
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(dateStr)) {
+      throw new AppError(`잘못된 날짜 형식입니다: ${dateStr} (YYYY-MM-DD 형식만 허용)`, 400);
+    }
+    const parsed = new Date(dateStr);
+    if (isNaN(parsed.getTime())) {
+      throw new AppError(`유효하지 않은 날짜입니다: ${dateStr}`, 400);
+    }
+    return parsed;
+  }
+
+  /**
+   * ORM용 날짜 WHERE 조건 빌더 (Sequelize Op 사용)
+   * 사용자 입력이 SQL 문자열에 직접 삽입되지 않도록 보장
+   */
+  _buildDateWhere(startDate, endDate, fieldName = 'work_start') {
+    const where = {};
+    const validStart = this._validateDateInput(startDate);
+    const validEnd = this._validateDateInput(endDate);
+
+    if (validStart && validEnd) {
+      const endFull = new Date(validEnd);
+      endFull.setHours(23, 59, 59, 999);
+      where[fieldName] = { [Op.between]: [validStart, endFull] };
+    } else if (validStart) {
+      where[fieldName] = { [Op.gte]: validStart };
+    } else if (validEnd) {
+      const endFull = new Date(validEnd);
+      endFull.setHours(23, 59, 59, 999);
+      where[fieldName] = { [Op.lte]: endFull };
+    }
+    return where;
+  }
+
+  /**
+   * Raw SQL용 날짜 조건 빌더
+   * 검증된 Date 객체만 replacements에 전달하여 파라미터화된 쿼리 보장
+   * 반환: { condition: string, replacements: object }
+   */
+  _buildDateCondition(startDate, endDate) {
+    const validStart = this._validateDateInput(startDate);
+    const validEnd = this._validateDateInput(endDate);
     const replacements = {};
-    if (start_date && end_date) {
-      const endFull = new Date(end_date);
+    let condition = '';
+
+    if (validStart && validEnd) {
+      const endFull = new Date(validEnd);
       endFull.setHours(23, 59, 59, 999);
-      dateCondition = 'AND w.work_start BETWEEN :startDate AND :endDate';
-      replacements.startDate = new Date(start_date);
+      condition = 'AND w.work_start BETWEEN :startDate AND :endDate';
+      replacements.startDate = validStart;
       replacements.endDate = endFull;
-    } else if (start_date) {
-      dateCondition = 'AND w.work_start >= :startDate';
-      replacements.startDate = new Date(start_date);
-    } else if (end_date) {
-      const endFull = new Date(end_date);
+    } else if (validStart) {
+      condition = 'AND w.work_start >= :startDate';
+      replacements.startDate = validStart;
+    } else if (validEnd) {
+      const endFull = new Date(validEnd);
       endFull.setHours(23, 59, 59, 999);
-      dateCondition = 'AND w.work_start <= :endDate';
+      condition = 'AND w.work_start <= :endDate';
       replacements.endDate = endFull;
     }
 
+    return { condition, replacements };
+  }
+
+  /**
+   * 상세 통계 조회 (통계 페이지용)
+   * 엔지니어별, 부서별, 고객사별 작업유형 교차 통계 + 장애 상세
+   *
+   * [보안] 모든 날짜 입력은 _buildDateCondition()을 통해 검증 후
+   *        Sequelize replacements 파라미터로만 전달됨 (SQL Injection 방지)
+   */
+  async getDetailedStatistics({ start_date, end_date }) {
+    const { condition: dateCondition, replacements } = this._buildDateCondition(start_date, end_date);
+    const dateWhere = this._buildDateWhere(start_date, end_date);
+
     const toNum = (v) => (typeof v === 'bigint' ? Number(v) : Number(v) || 0);
 
-    // ── 1. 개요 통계 ──────────────────────
-    const [overviewRows] = await sequelize.query(`
-      SELECT
-        COUNT(*) as total,
-        SUM(CASE WHEN status = '등록' THEN 1 ELSE 0 END) as status_registered,
-        SUM(CASE WHEN status = '관리자확인' THEN 1 ELSE 0 END) as status_checked,
-        SUM(CASE WHEN status = '승인완료' THEN 1 ELSE 0 END) as status_approved,
-        SUM(CASE WHEN work_type = '정기점검' THEN 1 ELSE 0 END) as type_regular,
-        SUM(CASE WHEN work_type = '장애지원' THEN 1 ELSE 0 END) as type_incident,
-        SUM(CASE WHEN work_type = '기술지원' THEN 1 ELSE 0 END) as type_tech,
-        SUM(CASE WHEN work_type = '프로젝트 지원' THEN 1 ELSE 0 END) as type_project,
-        SUM(CASE WHEN work_type = '기타' THEN 1 ELSE 0 END) as type_etc
-      FROM work_log w
-      WHERE 1=1 ${dateCondition}
-    `, { replacements, type: sequelize.QueryTypes.SELECT });
+    // ── 1. 개요 통계 (Sequelize ORM) ──────────────────────
+    const [totalCount, byStatusRaw, byWorkTypeRaw] = await Promise.all([
+      WorkLog.count({ where: dateWhere }),
+      WorkLog.findAll({
+        where: dateWhere,
+        attributes: [
+          'status',
+          [sequelize.fn('COUNT', sequelize.col('status')), 'count'],
+        ],
+        group: ['status'],
+        raw: true,
+      }),
+      WorkLog.findAll({
+        where: dateWhere,
+        attributes: [
+          'work_type',
+          [sequelize.fn('COUNT', sequelize.col('work_type')), 'count'],
+        ],
+        group: ['work_type'],
+        raw: true,
+      }),
+    ]);
 
-    const overview = overviewRows ? Object.fromEntries(
-      Object.entries(overviewRows).map(([k, v]) => [k, toNum(v)])
-    ) : {};
+    const statusMap = {};
+    byStatusRaw.forEach(r => { statusMap[r.status] = toNum(r.count); });
+    const typeMap = {};
+    byWorkTypeRaw.forEach(r => { typeMap[r.work_type] = toNum(r.count); });
+
+    const overview = {
+      total: toNum(totalCount),
+      status_registered: statusMap['등록'] || 0,
+      status_checked: statusMap['관리자확인'] || 0,
+      status_approved: statusMap['승인완료'] || 0,
+      type_regular: typeMap['정기점검'] || 0,
+      type_incident: typeMap['장애지원'] || 0,
+      type_tech: typeMap['기술지원'] || 0,
+      type_project: typeMap['프로젝트 지원'] || 0,
+      type_etc: typeMap['기타'] || 0,
+    };
 
     const queryOpts = { replacements, type: sequelize.QueryTypes.SELECT };
 
-    // ── 2. 엔지니어별 통계 ──────────────────
+    // ── 2. 엔지니어별 통계 (TIMESTAMPDIFF 등 MariaDB 함수 사용 → Raw SQL + 파라미터화)
     const byEngineerRaw = await sequelize.query(`
       SELECT
         u.user_id, u.name as user_name, u.position,
@@ -516,7 +662,7 @@ class WorkService {
       return row;
     });
 
-    // ── 6. 고객사별 장애 상세 (영향도, 원인분류) ──────
+    // ── 4. 고객사별 장애 상세 (영향도, 원인분류) ──────
     const clientIncidentRaw = await sequelize.query(`
       SELECT
         c.client_id, c.client_name,
@@ -547,7 +693,7 @@ class WorkService {
       });
     });
 
-    // ── 6. 월별 추이 (최근 6개월) ──────────────────
+    // ── 5. 월별 추이 (최근 6개월) ──────────────────
     const monthlyTrendRaw = await sequelize.query(`
       SELECT
         DATE_FORMAT(w.work_start, '%Y-%m') as month,
@@ -571,7 +717,7 @@ class WorkService {
       project_support: toNum(r.project_support),
     }));
 
-    // ── 7. 부서별 통계 ──────────────────
+    // ── 6. 부서별 통계 ──────────────────
     const byDepartmentRaw = await sequelize.query(`
       SELECT
         d.dept_id, d.dept_name,
@@ -600,6 +746,67 @@ class WorkService {
       Object.entries(r).map(([k, v]) => [k, typeof v === 'string' || v === null ? v : toNum(v)])
     ));
 
+    // ── 7. 야간/주말 작업 통계 ──────────────────
+    // 야간 = 18:00~익일09:00 시간대에 실제로 겹치는 분(minutes)만 계산
+    // 총 작업시간(분)에서 주간시간(09:00~18:00) 겹침을 빼서 야간시간 산출
+    // 자정을 넘는 작업도 정확히 처리됨
+    //
+    // night_minutes = total_minutes - daytime_overlap
+    // daytime_overlap = 같은날 09:00~18:00 겹침 (자정 안 넘는 경우만)
+    const overtimeByEngineerRaw = await sequelize.query(`
+      SELECT
+        u.user_id, u.name as user_name, u.position, d.dept_name,
+        COUNT(*) as total_count,
+        SUM(CASE WHEN
+          TIMESTAMPDIFF(MINUTE, w.work_start, w.work_end)
+          - CASE
+              WHEN HOUR(w.work_end) * 60 + MINUTE(w.work_end) >= HOUR(w.work_start) * 60 + MINUTE(w.work_start) THEN
+                GREATEST(0,
+                  LEAST(HOUR(w.work_end) * 60 + MINUTE(w.work_end), 1080)
+                  - GREATEST(HOUR(w.work_start) * 60 + MINUTE(w.work_start), 540)
+                )
+              ELSE
+                GREATEST(0, 1080 - GREATEST(HOUR(w.work_start) * 60 + MINUTE(w.work_start), 540))
+                + GREATEST(0, LEAST(HOUR(w.work_end) * 60 + MINUTE(w.work_end), 1080) - 540)
+            END
+          > 0 THEN 1 ELSE 0 END
+        ) as night_count,
+        SUM(CASE WHEN DAYOFWEEK(w.work_start) IN (1, 7) THEN 1 ELSE 0 END) as weekend_count,
+        ROUND(SUM(
+          TIMESTAMPDIFF(MINUTE, w.work_start, w.work_end)
+          - CASE
+              WHEN HOUR(w.work_end) * 60 + MINUTE(w.work_end) >= HOUR(w.work_start) * 60 + MINUTE(w.work_start) THEN
+                GREATEST(0,
+                  LEAST(HOUR(w.work_end) * 60 + MINUTE(w.work_end), 1080)
+                  - GREATEST(HOUR(w.work_start) * 60 + MINUTE(w.work_start), 540)
+                )
+              ELSE
+                GREATEST(0, 1080 - GREATEST(HOUR(w.work_start) * 60 + MINUTE(w.work_start), 540))
+                + GREATEST(0, LEAST(HOUR(w.work_end) * 60 + MINUTE(w.work_end), 1080) - 540)
+            END
+        ) / 60, 1) as night_hours,
+        ROUND(SUM(CASE WHEN DAYOFWEEK(w.work_start) IN (1, 7)
+          THEN TIMESTAMPDIFF(MINUTE, w.work_start, w.work_end) / 60 ELSE 0 END), 1) as weekend_hours,
+        ROUND(SUM(TIMESTAMPDIFF(MINUTE, w.work_start, w.work_end) / 60), 1) as total_hours
+      FROM work_log w
+      JOIN users u ON w.user_id = u.user_id
+      LEFT JOIN departments d ON u.dept_id = d.dept_id
+      WHERE 1=1 ${dateCondition}
+      GROUP BY u.user_id, u.name, u.position, d.dept_name
+      ORDER BY night_hours DESC
+    `, queryOpts);
+
+    const overtimeByEngineer = overtimeByEngineerRaw.map(r => Object.fromEntries(
+      Object.entries(r).map(([k, v]) => [k, typeof v === 'string' || v === null ? v : toNum(v)])
+    ));
+
+    const overtimeSummary = {
+      totalNightCount: overtimeByEngineer.reduce((s, r) => s + r.night_count, 0),
+      totalWeekendCount: overtimeByEngineer.reduce((s, r) => s + r.weekend_count, 0),
+      totalNightHours: Math.round(overtimeByEngineer.reduce((s, r) => s + r.night_hours, 0) * 10) / 10,
+      totalWeekendHours: Math.round(overtimeByEngineer.reduce((s, r) => s + r.weekend_hours, 0) * 10) / 10,
+    };
+
     return {
       overview,
       byEngineer,
@@ -607,6 +814,10 @@ class WorkService {
       byDepartment,
       clientIncidents: Object.values(clientIncidents),
       monthlyTrend,
+      overtime: {
+        byEngineer: overtimeByEngineer,
+        summary: overtimeSummary,
+      },
     };
   }
 }

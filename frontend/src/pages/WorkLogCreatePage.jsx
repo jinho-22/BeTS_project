@@ -24,7 +24,8 @@ export default function WorkLogCreatePage() {
     work_start: '',
     work_end: '',
     work_type: '',
-    supprt_type: '',
+    sub_work_type: [],
+    support_type: '',
     service_type: '',
     product_type: '',
     product_version: '',
@@ -48,7 +49,7 @@ export default function WorkLogCreatePage() {
 
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const isIncidentType = INCIDENT_WORK_TYPES.includes(form.work_type);
+  const isIncidentType = INCIDENT_WORK_TYPES.includes(form.work_type) || form.sub_work_type.some(t => INCIDENT_WORK_TYPES.includes(t));
 
   // 프로젝트 목록 (부서 필터 적용)
   const { data: projectsData } = useQuery({
@@ -102,6 +103,10 @@ export default function WorkLogCreatePage() {
     // 서비스 유형 변경 시 제품명 초기화
     if (name === 'service_type') {
       setForm((prev) => ({ ...prev, product_type: '' }));
+    }
+    // 주 작업유형 변경 시 부 작업유형에서 중복 제거
+    if (name === 'work_type') {
+      setForm((prev) => ({ ...prev, sub_work_type: prev.sub_work_type.filter(t => t !== value) }));
     }
   };
 
@@ -181,6 +186,7 @@ export default function WorkLogCreatePage() {
         ...form,
         project_id: parseInt(form.project_id),
         contact_id: contactId,
+        sub_work_type: form.sub_work_type.length > 0 ? form.sub_work_type : null,
       };
 
       if (isIncidentType) {
@@ -325,9 +331,32 @@ export default function WorkLogCreatePage() {
                   {WORK_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">부 작업유형</label>
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {WORK_TYPES.filter(t => t !== form.work_type).map((t) => (
+                    <label key={t} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm cursor-pointer transition-colors whitespace-nowrap ${
+                      form.sub_work_type.includes(t) ? 'bg-blue-50 border-blue-400 text-blue-700' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                    }`}>
+                      <input type="checkbox" className="sr-only" checked={form.sub_work_type.includes(t)}
+                        onChange={(e) => {
+                          setForm(prev => ({
+                            ...prev,
+                            sub_work_type: e.target.checked
+                              ? [...prev.sub_work_type, t]
+                              : prev.sub_work_type.filter(v => v !== t)
+                          }));
+                        }} />
+                      {form.sub_work_type.includes(t) && <span className="text-blue-500">✓</span>}
+                      {t}
+                    </label>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-400 mt-1">복합 작업 시 해당하는 유형을 모두 선택</p>
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">지원 구분 *</label>
-                <select name="supprt_type" value={form.supprt_type} onChange={handleChange} required
+                <select name="support_type" value={form.support_type} onChange={handleChange} required
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
                   <option value="">선택하세요</option>
                   {SUPPORT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}

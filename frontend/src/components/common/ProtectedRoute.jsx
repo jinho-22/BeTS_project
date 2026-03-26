@@ -3,7 +3,7 @@ import { useAuthStore } from '../../stores/authStore';
 import Icon from './Icons';
 
 export default function ProtectedRoute({ children, roles }) {
-  const { isAuthenticated, user, _hasHydrated } = useAuthStore();
+  const { isAuthenticated, user, mustChangePassword, _hasHydrated } = useAuthStore();
   const location = useLocation();
 
   // Zustand persist hydration이 완료될 때까지 로딩 표시
@@ -22,6 +22,11 @@ export default function ProtectedRoute({ children, roles }) {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // 비밀번호 강제 변경 필요 시 change-password 외 접근 차단
+  if (mustChangePassword && location.pathname !== '/change-password') {
+    return <Navigate to="/change-password" state={{ forced: true }} replace />;
   }
 
   if (roles && !roles.includes(user?.role)) {

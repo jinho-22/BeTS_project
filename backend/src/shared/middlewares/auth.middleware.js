@@ -8,12 +8,9 @@ const { User } = require('../../models');
  */
 const authenticate = async (req, res, next) => {
   try {
-    let token;
-
-    // Authorization 헤더에서 Bearer 토큰 추출
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-      token = req.headers.authorization.split(' ')[1];
-    }
+    // 1순위: HttpOnly 쿠키, 2순위: Authorization 헤더 (하위 호환)
+    const token = req.cookies?.accessToken
+      || (req.headers.authorization?.startsWith('Bearer') && req.headers.authorization.split(' ')[1]);
 
     if (!token) {
       return next(new AppError('인증이 필요합니다. 로그인해 주세요.', 401));
