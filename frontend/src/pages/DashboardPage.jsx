@@ -71,10 +71,34 @@ export default function DashboardPage() {
 
         {/* 통계 카드 */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-          <StatCard title="전체 작업" value={totalData?.pagination?.total ?? '-'} icon="clipboard" color="blue" />
-          <StatCard title="등록" value={registeredData?.pagination?.total ?? '-'} icon="memo" color="yellow" />
-          <StatCard title="관리자확인" value={checkedData?.pagination?.total ?? '-'} icon="eye" color="purple" />
-          <StatCard title="승인완료" value={approvedData?.pagination?.total ?? '-'} icon="check" color="green" />
+          <StatCard
+            title="전체 작업"
+            value={totalData?.pagination?.total ?? '-'}
+            icon="clipboard"
+            color="blue"
+            onClick={() => navigate(`/work?user_id=${user?.user_id}`)}
+          />
+          <StatCard
+            title="등록"
+            value={registeredData?.pagination?.total ?? '-'}
+            icon="memo"
+            color="yellow"
+            onClick={() => navigate(`/work?user_id=${user?.user_id}&status=${encodeURIComponent('등록')}`)}
+          />
+          <StatCard
+            title="관리자확인"
+            value={checkedData?.pagination?.total ?? '-'}
+            icon="eye"
+            color="purple"
+            onClick={() => navigate(`/work?user_id=${user?.user_id}&status=${encodeURIComponent('관리자확인')}`)}
+          />
+          <StatCard
+            title="승인완료"
+            value={approvedData?.pagination?.total ?? '-'}
+            icon="check"
+            color="green"
+            onClick={() => navigate(`/work?user_id=${user?.user_id}&status=${encodeURIComponent('승인완료')}`)}
+          />
         </div>
 
         {/* 빠른 액션 */}
@@ -189,7 +213,7 @@ export default function DashboardPage() {
   );
 }
 
-function StatCard({ title, value, icon, color }) {
+function StatCard({ title, value, icon, color, onClick }) {
   const colorClasses = {
     blue: 'bg-blue-50 text-blue-600',
     yellow: 'bg-yellow-50 text-yellow-600',
@@ -197,8 +221,13 @@ function StatCard({ title, value, icon, color }) {
     green: 'bg-green-50 text-green-600',
   };
 
-  return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-6 flex items-center gap-3 sm:gap-4">
+  const baseClass = 'bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-6 flex items-center gap-3 sm:gap-4';
+  const clickableClass = onClick
+    ? ' cursor-pointer hover:border-blue-300 hover:shadow-md transition-all text-left w-full'
+    : '';
+
+  const content = (
+    <>
       <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shrink-0 ${colorClasses[color]}`}>
         <Icon name={icon} size={20} className="sm:hidden" />
         <Icon name={icon} size={24} className="hidden sm:block" />
@@ -207,8 +236,18 @@ function StatCard({ title, value, icon, color }) {
         <p className="text-xs sm:text-sm text-gray-500">{title}</p>
         <p className="text-xl sm:text-2xl font-bold text-gray-900">{value}</p>
       </div>
-    </div>
+    </>
   );
+
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={baseClass + clickableClass}>
+        {content}
+      </button>
+    );
+  }
+
+  return <div className={baseClass}>{content}</div>;
 }
 
 function StatusBadge({ status }) {

@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import Header from '../components/layout/Header';
 import Icon from '../components/common/Icons';
 import api from '../lib/axios';
@@ -8,18 +8,42 @@ import { useAuthStore } from '../stores/authStore';
 
 export default function WorkLogListPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuthStore();
   const deptId = user?.role !== 'admin' ? user?.dept_id : undefined;
   const [page, setPage] = useState(1);
+
+  // URL 파라미터로부터 user_id 필터 여부 확인 (대시보드에서 진입 시)
+  const urlUserId = searchParams.get('user_id');
+  const isMyWorkFilter = urlUserId && String(urlUserId) === String(user?.user_id);
+
   const [filters, setFilters] = useState({
     work_type: '',
-    status: '',
+    status: searchParams.get('status') || '',
     product_type: '',
     keyword: '',
     start_date: '',
     end_date: '',
     is_recurrence: '',
   });
+
+  // URL 파라미터 변경 시 필터 동기화 (브라우저 뒤로가기/앞으로가기 대응)
+  useEffect(() => {
+    const status = searchParams.get('status') || '';
+    setFilters((prev) => (prev.status === status ? prev : { ...prev, status }));
+    setPage(1);
+  }, [searchParams]);
+
+  // '내 작업만' 체크박스 토글
+  const toggleMyWorkFilter = (checked) => {
+    if (checked) {
+      searchParams.set('user_id', String(user?.user_id));
+    } else {
+      searchParams.delete('user_id');
+    }
+    setSearchParams(searchParams, { replace: true });
+    setPage(1);
+  };
 
   // 제품 마스터 데이터
   const { data: productsData } = useQuery({
@@ -34,10 +58,11 @@ export default function WorkLogListPage() {
   const productNames = [...new Set(productsData?.map(p => p.product_name) || [])];
 
   const { data, isLoading } = useQuery({
-    queryKey: ['workLogs', page, filters, deptId],
+    queryKey: ['workLogs', page, filters, deptId, urlUserId],
     queryFn: async () => {
       const params = { page, limit: 10, ...filters };
       if (deptId) params.dept_id = deptId;
+      if (urlUserId) params.user_id = urlUserId;
       Object.keys(params).forEach((key) => {
         if (!params[key]) delete params[key];
       });
@@ -55,6 +80,12 @@ export default function WorkLogListPage() {
       }
       return next;
     });
+    // status 필터는 URL과 동기화
+    if (key === 'status') {
+      if (value) searchParams.set('status', value);
+      else searchParams.delete('status');
+      setSearchParams(searchParams, { replace: true });
+    }
     setPage(1);
   };
 
@@ -62,9 +93,36 @@ export default function WorkLogListPage() {
     <>
       <Header title="작업 내역" />
       <div className="mt-6 space-y-4">
-        {/* 필터 & 액션 바 */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4 space-y-3 sm:space-y-0">
+        {/* 상단 액션 바 (새 작업 등록) */}
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-gray-500">
+            총 <span className="font-semibold text-gray-800">{data?.pagination?.total ?? 0}</span>건
+          </p>
+          <Link
+            to="/work/new"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium text-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            새 작업 등록
+          </Link>
+        </div>
+
+        {/* 필터 바 */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-4">
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <label className={`inline-flex items-center gap-2 px-3 py-2 border rounded-lg text-sm cursor-pointer transition-colors select-none ${
+              isMyWorkFilter ? 'bg-blue-50 border-blue-400 text-blue-700' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+            }`}>
+              <input
+                type="checkbox"
+                checked={isMyWorkFilter}
+                onChange={(e) => toggleMyWorkFilter(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="font-medium whitespace-nowrap">내 작업만</span>
+            </label>
             <input
               type="text"
               placeholder="키워드 검색..."
@@ -83,6 +141,22 @@ export default function WorkLogListPage() {
               <option value="기술지원">기술지원</option>
               <option value="프로젝트 지원">프로젝트 지원</option>
               <option value="기타">기타</option>
+            </select>
+            {/* 재발여부: 장애지원 선택 시에만 활성화, 공간은 항상 예약 */}
+            <select
+              className={`px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm flex-1 sm:flex-none transition-opacity ${
+                filters.work_type === '장애지원'
+                  ? 'border-gray-300 bg-white text-gray-700'
+                  : 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
+              }`}
+              value={filters.is_recurrence}
+              onChange={(e) => handleFilterChange('is_recurrence', e.target.value)}
+              disabled={filters.work_type !== '장애지원'}
+              title={filters.work_type !== '장애지원' ? '작업 유형을 장애지원으로 선택하면 활성화됩니다' : ''}
+            >
+              <option value="">재발여부 전체</option>
+              <option value="Y">재발</option>
+              <option value="N">최초 발생</option>
             </select>
             <select
               className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm flex-1 sm:flex-none"
@@ -104,17 +178,6 @@ export default function WorkLogListPage() {
                 <option key={name} value={name}>{name}</option>
               ))}
             </select>
-            {filters.work_type === '장애지원' && (
-              <select
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm flex-1 sm:flex-none"
-                value={filters.is_recurrence}
-                onChange={(e) => handleFilterChange('is_recurrence', e.target.value)}
-              >
-                <option value="">재발여부 전체</option>
-                <option value="Y">재발</option>
-                <option value="N">최초 발생</option>
-              </select>
-            )}
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <input type="date" value={filters.start_date}
                 onChange={(e) => handleFilterChange('start_date', e.target.value)}
@@ -123,12 +186,6 @@ export default function WorkLogListPage() {
               <input type="date" value={filters.end_date}
                 onChange={(e) => handleFilterChange('end_date', e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 flex-1 sm:flex-none" />
-            </div>
-            <div className="w-full sm:w-auto sm:ml-auto">
-              <Link to="/work/new"
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors inline-block w-full sm:w-auto text-center">
-                + 새 작업 등록
-              </Link>
             </div>
           </div>
         </div>
