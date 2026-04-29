@@ -35,6 +35,8 @@ export default function WorkLogEditPage() {
   // 담당자 직접 입력 관련
   const [contactMode, setContactMode] = useState('select');
   const [newContact, setNewContact] = useState({ name: '', phone: '', email: '' });
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [contactModalDraft, setContactModalDraft] = useState({ name: '', phone: '', email: '' });
 
   const { data: logData } = useQuery({
     queryKey: ['workLog', id],
@@ -157,7 +159,26 @@ export default function WorkLogEditPage() {
       setNewContact({ name: '', phone: '', email: '' });
     } else {
       setForm((prev) => ({ ...prev, contact_id: '' }));
+      setContactModalDraft(newContact);
+      setShowContactModal(true);
     }
+  };
+
+  const openContactModal = () => {
+    setContactModalDraft(newContact);
+    setShowContactModal(true);
+  };
+
+  const closeContactModal = () => {
+    setShowContactModal(false);
+  };
+
+  const saveContactModal = () => {
+    if (!contactModalDraft.name.trim()) {
+      return;
+    }
+    setNewContact(contactModalDraft);
+    setShowContactModal(false);
   };
 
   const handleFileUpload = async (e) => {
@@ -285,7 +306,7 @@ export default function WorkLogEditPage() {
                   ))}
                 </select>
               </div>
-              <div className={contactMode === 'direct' ? 'md:col-span-2' : ''}>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   요청자 *
                   <span className="ml-2 inline-flex rounded-md shadow-sm">
@@ -310,30 +331,23 @@ export default function WorkLogEditPage() {
                     ))}
                   </select>
                 ) : (
-                  <div className="grid grid-cols-3 gap-2">
-                    <input
-                      type="text"
-                      placeholder="담당자 이름 *"
-                      value={newContact.name}
-                      onChange={(e) => setNewContact((prev) => ({ ...prev, name: e.target.value }))}
-                      required
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                    />
-                    <input
-                      type="email"
-                      placeholder="이메일"
-                      value={newContact.email}
-                      onChange={(e) => setNewContact((prev) => ({ ...prev, email: e.target.value }))}
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                    />
-                    <input
-                      type="text"
-                      placeholder="전화번호"
-                      value={newContact.phone}
-                      onChange={(e) => setNewContact((prev) => ({ ...prev, phone: e.target.value }))}
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                    />
-                  </div>
+                  <button
+                    type="button"
+                    onClick={openContactModal}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-left flex items-center justify-between hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {newContact.name ? (
+                      <span className="text-gray-800 truncate">
+                        {newContact.name}
+                        {newContact.phone && <span className="text-gray-400 text-xs ml-1">({newContact.phone})</span>}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">담당자 정보 입력하기...</span>
+                    )}
+                    <svg className="w-4 h-4 text-gray-400 shrink-0 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                  </button>
                 )}
               </div>
               <div>
@@ -558,6 +572,70 @@ export default function WorkLogEditPage() {
           </div>
         </form>
       </div>
+
+      {/* 담당자 직접 입력 모달 */}
+      {showContactModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
+            <div className="px-6 py-5 border-b border-gray-100">
+              <h3 className="text-lg font-semibold text-gray-900">담당자 정보 입력</h3>
+              <p className="text-sm text-gray-500 mt-1">새로운 담당자 정보를 입력합니다.</p>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  담당자 이름 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={contactModalDraft.name}
+                  onChange={(e) => setContactModalDraft((prev) => ({ ...prev, name: e.target.value }))}
+                  placeholder="홍길동"
+                  autoFocus
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">이메일</label>
+                <input
+                  type="email"
+                  value={contactModalDraft.email}
+                  onChange={(e) => setContactModalDraft((prev) => ({ ...prev, email: e.target.value }))}
+                  placeholder="example@company.com"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">전화번호</label>
+                <input
+                  type="text"
+                  value={contactModalDraft.phone}
+                  onChange={(e) => setContactModalDraft((prev) => ({ ...prev, phone: e.target.value }))}
+                  placeholder="010-0000-0000"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+            <div className="px-6 py-4 bg-gray-50 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={closeContactModal}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={saveContactModal}
+                disabled={!contactModalDraft.name.trim()}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

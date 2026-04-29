@@ -73,8 +73,12 @@ const querySchema = {
     work_type: Joi.string().valid('정기점검', '장애지원', '기술지원', '프로젝트 지원', '기타'),
     status: Joi.string().valid('등록', '관리자확인', '승인완료'),
     product_type: Joi.string().max(100),
-    start_date: Joi.date().iso(),
-    end_date: Joi.date().iso(),
+    start_date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).messages({
+      'string.pattern.base': 'start_date는 YYYY-MM-DD 형식이어야 합니다.',
+    }),
+    end_date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).messages({
+      'string.pattern.base': 'end_date는 YYYY-MM-DD 형식이어야 합니다.',
+    }),
     keyword: Joi.string().max(200),
     is_recurrence: Joi.string().valid('Y', 'N'),
   }),

@@ -476,16 +476,14 @@ class WorkService {
     if (!dateRegex.test(dateStr)) {
       throw new AppError(`잘못된 날짜 형식입니다: ${dateStr} (YYYY-MM-DD 형식만 허용)`, 400);
     }
-    const parsed = new Date(dateStr);
-    if (isNaN(parsed.getTime())) {
-      throw new AppError(`유효하지 않은 날짜입니다: ${dateStr}`, 400);
-    }
-    return parsed;
+    // Date 객체 대신 문자열 반환 (타임존 오프셋 문제 방지)
+    return dateStr;
   }
 
   /**
    * ORM용 날짜 WHERE 조건 빌더 (Sequelize Op 사용)
-   * 사용자 입력이 SQL 문자열에 직접 삽입되지 않도록 보장
+   * 타임존 문제를 방지하기 위해 문자열 기반 비교 사용
+   * '2026-03-27' → '2026-03-27 00:00:00' ~ '2026-03-27 23:59:59' (로컬 시간 기준)
    */
   _buildDateWhere(startDate, endDate, fieldName = 'work_start') {
     const where = {};
@@ -493,15 +491,11 @@ class WorkService {
     const validEnd = this._validateDateInput(endDate);
 
     if (validStart && validEnd) {
-      const endFull = new Date(validEnd);
-      endFull.setHours(23, 59, 59, 999);
-      where[fieldName] = { [Op.between]: [validStart, endFull] };
+      where[fieldName] = { [Op.between]: [`${validStart} 00:00:00`, `${validEnd} 23:59:59`] };
     } else if (validStart) {
-      where[fieldName] = { [Op.gte]: validStart };
+      where[fieldName] = { [Op.gte]: `${validStart} 00:00:00` };
     } else if (validEnd) {
-      const endFull = new Date(validEnd);
-      endFull.setHours(23, 59, 59, 999);
-      where[fieldName] = { [Op.lte]: endFull };
+      where[fieldName] = { [Op.lte]: `${validEnd} 23:59:59` };
     }
     return where;
   }
@@ -518,19 +512,15 @@ class WorkService {
     let condition = '';
 
     if (validStart && validEnd) {
-      const endFull = new Date(validEnd);
-      endFull.setHours(23, 59, 59, 999);
       condition = 'AND w.work_start BETWEEN :startDate AND :endDate';
-      replacements.startDate = validStart;
-      replacements.endDate = endFull;
+      replacements.startDate = `${validStart} 00:00:00`;
+      replacements.endDate = `${validEnd} 23:59:59`;
     } else if (validStart) {
       condition = 'AND w.work_start >= :startDate';
-      replacements.startDate = validStart;
+      replacements.startDate = `${validStart} 00:00:00`;
     } else if (validEnd) {
-      const endFull = new Date(validEnd);
-      endFull.setHours(23, 59, 59, 999);
       condition = 'AND w.work_start <= :endDate';
-      replacements.endDate = endFull;
+      replacements.endDate = `${validEnd} 23:59:59`;
     }
 
     return { condition, replacements };
