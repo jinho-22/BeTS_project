@@ -18,6 +18,12 @@ const ManagerContact = sequelize.define('ManagerContact', {
     allowNull: false,
     comment: '요청자 성명',
   },
+  company: {
+    type: DataTypes.STRING(100),
+    allowNull: true,
+    defaultValue: '',
+    comment: '요청자 소속 회사',
+  },
   email: {
     type: DataTypes.STRING(100),
     allowNull: true,

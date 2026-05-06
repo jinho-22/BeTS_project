@@ -19,6 +19,7 @@ const WorkLog = require('../modules/work/models/WorkLog.model');
 const Incident = require('../modules/work/models/Incident.model');
 const FileUpload = require('../modules/work/models/FileUpload.model');
 const WorkLogComment = require('../modules/work/models/WorkLogComment.model');
+const WorkLogProduct = require('../modules/work/models/WorkLogProduct.model');
 
 // ─── Notification Domain ────────────────────
 const Notification = require('../modules/notification/Notification.model');
@@ -78,6 +79,10 @@ WorkLogComment.belongsTo(WorkLog, { foreignKey: 'log_id', as: 'workLog' });
 User.hasMany(WorkLogComment, { foreignKey: 'user_id', as: 'statusComments' });
 WorkLogComment.belongsTo(User, { foreignKey: 'user_id', as: 'author' });
 
+// WorkLog 1:N WorkLogProduct (한 작업에 여러 제품 지원)
+WorkLog.hasMany(WorkLogProduct, { foreignKey: 'log_id', as: 'products', onDelete: 'CASCADE' });
+WorkLogProduct.belongsTo(WorkLog, { foreignKey: 'log_id', as: 'workLog' });
+
 // ── Notification Domain ──────────────────────
 // User 1:N Notification (받는 사람)
 User.hasMany(Notification, { foreignKey: 'user_id', as: 'notifications' });
@@ -102,5 +107,6 @@ module.exports = {
   Incident,
   FileUpload,
   WorkLogComment,
+  WorkLogProduct,
   Notification,
 };

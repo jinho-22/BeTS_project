@@ -2,7 +2,7 @@ const { Op } = require('sequelize');
 const sequelize = require('../../config/database');
 const AppError = require('../../shared/utils/AppError');
 const {
-  WorkLog, Incident, FileUpload, User, Project, Client, ManagerContact, Department, WorkLogComment, Notification,
+  WorkLog, Incident, FileUpload, User, Project, Client, ManagerContact, Department, WorkLogComment, WorkLogProduct, Notification,
 } = require('../../models');
 
 // 장애 관련 작업 유형
@@ -92,6 +92,16 @@ class WorkService {
         workData.sub_work_type = workData.sub_work_type.filter(Boolean).join(',') || null;
       }
 
+      // products 배열 정규화 (단일 제품 입력 호환)
+      const productsArr = this._normalizeProducts(workData);
+      // 첫 번째 제품을 work_log 단일 컬럼에도 저장 (레거시 통계 호환)
+      const firstProduct = productsArr[0];
+      workData.service_type = firstProduct.service_type;
+      workData.product_type = firstProduct.product_type;
+      workData.product_version = firstProduct.product_version;
+      // products 키는 work_log 컬럼이 아니므로 제거
+      delete workData.products;
+
       // 1. 장애 관련 작업 유형 검증 (주 유형 또는 부 유형에 장애지원 포함 시)
       const allTypes = [workData.work_type, ...(workData.sub_work_type || '').split(',')].filter(Boolean);
       const hasIncident = allTypes.some(t => INCIDENT_WORK_TYPES.includes(t));
@@ -113,7 +123,13 @@ class WorkService {
         { transaction }
       );
 
-      // 3. 장애 내역 생성 (장애 관련 작업일 경우)
+      // 3-1. WorkLogProduct (다중 제품) 생성
+      await WorkLogProduct.bulkCreate(
+        productsArr.map((p) => ({ ...p, log_id: workLog.log_id })),
+        { transaction }
+      );
+
+      // 4. 장애 내역 생성 (장애 관련 작업일 경우)
       let incident = null;
       if (incidentData) {
         incident = await Incident.create(
@@ -137,6 +153,29 @@ class WorkService {
   }
 
   /**
+   * products 입력 정규화 헬퍼
+   * - workData.products 배열이 있으면 그대로 사용
+   * - 없으면 단일 product_type/service_type/product_version에서 1건 생성
+   */
+  _normalizeProducts(workData) {
+    if (Array.isArray(workData.products) && workData.products.length > 0) {
+      return workData.products.map((p) => ({
+        service_type: p.service_type,
+        product_type: p.product_type,
+        product_version: p.product_version,
+      }));
+    }
+    if (workData.product_type && workData.service_type && workData.product_version) {
+      return [{
+        service_type: workData.service_type,
+        product_type: workData.product_type,
+        product_version: workData.product_version,
+      }];
+    }
+    throw new AppError('제품 정보(products 또는 service_type/product_type/product_version)가 필요합니다.', 400);
+  }
+
+  /**
    * 작업 로그 목록 조회 (필터링/검색/페이징)
    */
   async findAll({ page = 1, limit = 20, user_id, project_id, dept_id, work_type, status, product_type, start_date, end_date, keyword, is_recurrence }) {
@@ -147,7 +186,7 @@ class WorkService {
     if (project_id) where.project_id = project_id;
     if (work_type) where.work_type = work_type;
     if (status) where.status = status;
-    if (product_type) where.product_type = product_type;
+    // product_type 필터는 work_log_products 테이블 조인으로 처리 (아래 productInclude 참고)
 
     // 날짜 필터 (검증된 헬퍼 사용)
     Object.assign(where, this._buildDateWhere(start_date, end_date));
@@ -174,6 +213,13 @@ class WorkService {
       incidentInclude.required = true;
     }
 
+    // 제품 필터: work_log_products의 product_type과 매칭 (다중 제품 중 하나라도 일치하면 OK)
+    const productInclude = { model: WorkLogProduct, as: 'products' };
+    if (product_type) {
+      productInclude.where = { product_type };
+      productInclude.required = true;
+    }
+
     return WorkLog.findAndCountAll({
       where,
       limit: parseInt(limit, 10),
@@ -185,7 +231,9 @@ class WorkService {
         { model: ManagerContact, as: 'contact' },
         incidentInclude,
         { model: FileUpload, as: 'files' },
+        productInclude,
       ],
+      distinct: true,
     });
   }
 
@@ -207,6 +255,7 @@ class WorkService {
         { model: ManagerContact, as: 'contact' },
         { model: Incident, as: 'incident' },
         { model: FileUpload, as: 'files' },
+        { model: WorkLogProduct, as: 'products' },
         {
           model: WorkLogComment, as: 'comments',
           include: [{ model: User, as: 'author', attributes: ['user_id', 'name'] }],
@@ -249,6 +298,21 @@ class WorkService {
         workData.sub_work_type = workData.sub_work_type.filter(Boolean).join(',') || null;
       }
 
+      // products가 있으면 정규화 + 단일 컬럼 동기화 (첫 번째 제품 기준)
+      let productsArr = null;
+      if (Array.isArray(workData.products) && workData.products.length > 0) {
+        productsArr = workData.products.map((p) => ({
+          service_type: p.service_type,
+          product_type: p.product_type,
+          product_version: p.product_version,
+        }));
+        const first = productsArr[0];
+        workData.service_type = first.service_type;
+        workData.product_type = first.product_type;
+        workData.product_version = first.product_version;
+      }
+      delete workData.products;
+
       // 1. 장애 관련 작업 유형 검증 (주 유형 또는 부 유형에 장애지원 포함 시)
       const workType = workData.work_type || workLog.work_type;
       const subTypes = (workData.sub_work_type || workLog.sub_work_type || '').split(',').filter(Boolean);
@@ -262,6 +326,15 @@ class WorkService {
 
       // 2. WorkLog 수정
       await workLog.update(workData, { transaction });
+
+      // 2-1. products 갱신: 기존 삭제 후 재생성
+      if (productsArr) {
+        await WorkLogProduct.destroy({ where: { log_id: logId }, transaction });
+        await WorkLogProduct.bulkCreate(
+          productsArr.map((p) => ({ ...p, log_id: logId })),
+          { transaction }
+        );
+      }
 
       // 3. 장애 내역 수정
       if (incidentData) {

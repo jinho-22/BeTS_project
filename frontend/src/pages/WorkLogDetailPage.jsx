@@ -184,7 +184,7 @@ export default function WorkLogDetailPage() {
             <InfoItem label="부서" value={log.user?.department?.dept_name} />
             <InfoItem label="프로젝트" value={log.project?.project_name} />
             <InfoItem label="고객사" value={log.project?.client?.client_name} />
-            <InfoItem label="요청자" value={log.contact ? `${log.contact.name} (${log.contact.phone})` : '-'} />
+            <InfoItem label="요청자" value={log.contact ? `${log.contact.name}${log.contact.company ? ` [${log.contact.company}]` : ''}${log.contact.phone ? ` (${log.contact.phone})` : ''}` : '-'} />
             <InfoItem label="작업 기간" value={`${formatDate(log.work_start)} ~ ${formatDate(log.work_end)}`} />
           </dl>
         </div>
@@ -195,9 +195,36 @@ export default function WorkLogDetailPage() {
           <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
             <InfoItem label="작업 유형" value={log.sub_work_type ? `${log.work_type} + ${log.sub_work_type.split(',').join(', ')}` : log.work_type} />
             <InfoItem label="지원 구분" value={log.support_type} />
-            <InfoItem label="서비스 유형" value={log.service_type} />
-            <InfoItem label="제품" value={`${log.product_type} ${log.product_version}`} />
           </dl>
+
+          {/* 제품 리스트 (다중 제품 지원) */}
+          <div className="mt-4">
+            <p className="text-sm text-gray-500 mb-2">제품 정보 ({(log.products || []).length || 1}건)</p>
+            <div className="space-y-2">
+              {Array.isArray(log.products) && log.products.length > 0 ? (
+                log.products.map((p, idx) => (
+                  <div key={p.id || idx} className="flex items-center gap-2 flex-wrap p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 text-xs font-medium">
+                      {p.service_type}
+                    </span>
+                    <span className="font-medium text-gray-900">{p.product_type}</span>
+                    <span className="text-gray-500">{p.product_version}</span>
+                  </div>
+                ))
+              ) : (
+                /* 레거시: products 배열이 없으면 단일 컬럼 사용 */
+                <div className="flex items-center gap-2 flex-wrap p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm">
+                  {log.service_type && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 text-xs font-medium">
+                      {log.service_type}
+                    </span>
+                  )}
+                  <span className="font-medium text-gray-900">{log.product_type}</span>
+                  <span className="text-gray-500">{log.product_version}</span>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* 장애 상세 */}

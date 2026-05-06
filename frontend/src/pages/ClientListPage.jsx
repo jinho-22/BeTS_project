@@ -26,7 +26,7 @@ export default function ClientListPage() {
   // 담당자 관련 상태
   const [showContactModal, setShowContactModal] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
-  const [contactForm, setContactForm] = useState({ name: '', email: '', phone: '' });
+  const [contactForm, setContactForm] = useState({ name: '', company: '', email: '', phone: '' });
 
   // 프로젝트 내 담당자 펼치기
   const [expandedProjectId, setExpandedProjectId] = useState(null);
@@ -217,7 +217,7 @@ export default function ClientListPage() {
   const openContactModal = (e, project) => {
     e.stopPropagation();
     setSelectedProject(project);
-    setContactForm({ name: '', email: '', phone: '' });
+    setContactForm({ name: '', company: '', email: '', phone: '' });
     setError('');
     setShowContactModal(true);
   };
@@ -358,7 +358,14 @@ export default function ClientListPage() {
                                 {contact.name?.charAt(0)}
                               </div>
                               <div className="min-w-0 flex-1">
-                                <p className="font-medium text-gray-900 text-sm truncate">{contact.name}</p>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <p className="font-medium text-gray-900 text-sm truncate">{contact.name}</p>
+                                  {contact.company && (
+                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200 truncate max-w-[120px]">
+                                      {contact.company}
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="flex flex-col gap-0.5 mt-0.5">
                                   {contact.email && (
                                     <a href={`mailto:${contact.email}`} className="text-xs text-blue-600 hover:underline truncate">{contact.email}</a>
@@ -675,6 +682,13 @@ export default function ClientListPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">성명 *</label>
                 <input type="text" value={contactForm.name}
                   onChange={(e) => setContactForm(p => ({ ...p, name: e.target.value }))} required autoFocus
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">소속 회사</label>
+                <input type="text" value={contactForm.company}
+                  onChange={(e) => setContactForm(p => ({ ...p, company: e.target.value }))}
+                  placeholder="요청자 소속 회사명 (선택)"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
               </div>
               <div>

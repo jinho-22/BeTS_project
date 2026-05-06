@@ -50,6 +50,7 @@ const createContactSchema = {
   body: Joi.object({
     project_id: Joi.number().integer().required(),
     name: Joi.string().max(50).required(),
+    company: Joi.string().max(100).allow('', null).default(''),
     email: Joi.string().email().max(100).allow('', null).default(''),
     phone: Joi.string().max(20).allow('', null).default(''),
   }),
@@ -58,8 +59,9 @@ const createContactSchema = {
 const updateContactSchema = {
   body: Joi.object({
     name: Joi.string().max(50),
-    email: Joi.string().email().max(100),
-    phone: Joi.string().max(20),
+    company: Joi.string().max(100).allow('', null),
+    email: Joi.string().email().max(100).allow('', null),
+    phone: Joi.string().max(20).allow('', null),
   }).min(1),
   params: Joi.object({
     id: Joi.number().integer().required(),
