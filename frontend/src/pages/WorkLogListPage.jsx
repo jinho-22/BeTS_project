@@ -212,7 +212,11 @@ export default function WorkLogListPage() {
                       <span className="text-gray-300">|</span>
                       <span>{log.work_type}{log.sub_work_type ? ` + ${log.sub_work_type}` : ''}{log.incident ? ' ⚠' : ''}</span>
                       <span className="text-gray-300">|</span>
-                      <span>{log.product_type}</span>
+                      <span>
+                        {log.products?.length > 1
+                          ? `${log.products[0].product_type} 외 ${log.products.length - 1}건`
+                          : (log.products?.[0]?.product_type || log.product_type)}
+                      </span>
                       <span className="text-gray-300">|</span>
                       <span>{log.user?.name || '-'}</span>
                     </div>
@@ -253,7 +257,14 @@ export default function WorkLogListPage() {
                           {log.incident && <Icon name="alert" size={12} className="ml-1 text-red-500 inline-block" />}
                         </td>
                         <td className="py-3 px-4 text-gray-500 text-xs">
-                          {log.product_type}<br />{log.product_version}
+                          {log.products?.length > 1 ? (
+                            <>
+                              {log.products[0].product_type}<br />
+                              <span className="text-gray-400">외 {log.products.length - 1}건</span>
+                            </>
+                          ) : (
+                            <>{log.products?.[0]?.product_type || log.product_type}<br />{log.products?.[0]?.product_version || log.product_version}</>
+                          )}
                         </td>
                         <td className="py-3 px-4 text-sm">{log.project?.client?.client_name || '-'}</td>
                         <td className="py-3 px-4 text-sm">{log.project?.project_name || '-'}</td>

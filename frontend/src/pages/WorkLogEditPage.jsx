@@ -27,16 +27,28 @@ export default function WorkLogEditPage() {
   const deptId = user?.role !== 'admin' ? user?.dept_id : undefined;
 
   const [form, setForm] = useState(null);
+  const [products, setProducts] = useState([{ service_type: '', product_type: '', product_version: '' }]);
   const [incident, setIncident] = useState(null);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState(false);
 
+  const addProduct = () => setProducts((prev) => [...prev, { service_type: '', product_type: '', product_version: '' }]);
+  const removeProduct = (index) => setProducts((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)));
+  const updateProduct = (index, field, value) => {
+    setProducts((prev) => prev.map((p, i) => {
+      if (i !== index) return p;
+      const next = { ...p, [field]: value };
+      if (field === 'service_type') next.product_type = '';
+      return next;
+    }));
+  };
+
   // 담당자 직접 입력 관련
   const [contactMode, setContactMode] = useState('select');
-  const [newContact, setNewContact] = useState({ name: '', phone: '', email: '' });
+  const [newContact, setNewContact] = useState({ name: '', company: '', phone: '', email: '' });
   const [showContactModal, setShowContactModal] = useState(false);
-  const [contactModalDraft, setContactModalDraft] = useState({ name: '', phone: '', email: '' });
+  const [contactModalDraft, setContactModalDraft] = useState({ name: '', company: '', phone: '', email: '' });
 
   const { data: logData } = useQuery({
     queryKey: ['workLog', id],
@@ -85,11 +97,22 @@ export default function WorkLogEditPage() {
         work_type: logData.work_type || '',
         sub_work_type: logData.sub_work_type ? logData.sub_work_type.split(',') : [],
         support_type: logData.support_type || '',
-        service_type: logData.service_type || '',
-        product_type: logData.product_type || '',
-        product_version: logData.product_version || '',
         details: logData.details || '',
       });
+      // products: 신규 컬럼 사용, 없으면 레거시 단일 제품에서 1건 구성
+      if (Array.isArray(logData.products) && logData.products.length > 0) {
+        setProducts(logData.products.map((p) => ({
+          service_type: p.service_type || '',
+          product_type: p.product_type || '',
+          product_version: p.product_version || '',
+        })));
+      } else if (logData.service_type && logData.product_type) {
+        setProducts([{
+          service_type: logData.service_type,
+          product_type: logData.product_type,
+          product_version: logData.product_version || '',
+        }]);
+      }
       if (logData.incident) {
         setIncident({
           action_type: logData.incident.action_type || '',
@@ -132,9 +155,6 @@ export default function WorkLogEditPage() {
       setForm((prev) => ({ ...prev, contact_id: '' }));
       setNewContact({ name: '', phone: '', email: '' });
     }
-    if (name === 'service_type') {
-      setForm((prev) => ({ ...prev, product_type: '' }));
-    }
     if (name === 'work_type') {
       setForm((prev) => ({ ...prev, sub_work_type: prev.sub_work_type.filter(t => t !== value) }));
     }
@@ -156,7 +176,7 @@ export default function WorkLogEditPage() {
   const handleContactModeChange = (mode) => {
     setContactMode(mode);
     if (mode === 'select') {
-      setNewContact({ name: '', phone: '', email: '' });
+      setNewContact({ name: '', company: '', phone: '', email: '' });
     } else {
       setForm((prev) => ({ ...prev, contact_id: '' }));
       setContactModalDraft(newContact);
@@ -244,6 +264,7 @@ export default function WorkLogEditPage() {
         const { data: contactRes } = await api.post('/projects/contacts', {
           project_id: parseInt(form.project_id),
           name: newContact.name.trim(),
+          company: newContact.company?.trim() || '',
           email: newContact.email.trim() || '',
           phone: newContact.phone.trim() || '',
         });
@@ -252,11 +273,26 @@ export default function WorkLogEditPage() {
         queryClient.invalidateQueries({ queryKey: ['contacts', form.project_id] });
       }
 
+      // products 정리
+      const cleanProducts = products
+        .map((p) => ({
+          service_type: p.service_type?.trim() || '',
+          product_type: p.product_type?.trim() || '',
+          product_version: p.product_version?.trim() || '',
+        }))
+        .filter((p) => p.service_type && p.product_type && p.product_version);
+      if (cleanProducts.length === 0) {
+        setError('최소 1개의 제품 정보를 입력해주세요.');
+        setSubmitting(false);
+        return;
+      }
+
       const payload = {
         ...form,
         project_id: parseInt(form.project_id),
         contact_id: contactId,
         sub_work_type: form.sub_work_type.length > 0 ? form.sub_work_type : null,
+        products: cleanProducts,
       };
 
       if (isIncidentType && incident) {
@@ -326,7 +362,7 @@ export default function WorkLogEditPage() {
                     <option value="">선택하세요</option>
                     {contactsData?.map((c) => (
                       <option key={c.contact_id} value={c.contact_id}>
-                        {c.name} {c.phone ? `(${c.phone})` : ''}
+                        {c.name}{c.company ? ` [${c.company}]` : ''}{c.phone ? ` (${c.phone})` : ''}
                       </option>
                     ))}
                   </select>
@@ -339,6 +375,7 @@ export default function WorkLogEditPage() {
                     {newContact.name ? (
                       <span className="text-gray-800 truncate">
                         {newContact.name}
+                        {newContact.company && <span className="text-amber-600 text-xs ml-1">[{newContact.company}]</span>}
                         {newContact.phone && <span className="text-gray-400 text-xs ml-1">({newContact.phone})</span>}
                       </span>
                     ) : (
@@ -399,42 +436,73 @@ export default function WorkLogEditPage() {
                 <p className="text-xs text-gray-400 mt-1">복합 작업 시 해당하는 유형을 모두 선택</p>
               </div>
               <SelectField label="지원 구분" name="support_type" value={form.support_type} options={SUPPORT_TYPES} onChange={handleChange} />
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">제품 유형 *</label>
-                <select name="service_type" value={form.service_type} onChange={handleChange} required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
-                  <option value="">선택하세요</option>
-                  {serviceTypes.length > 0
-                    ? serviceTypes.map((t) => <option key={t} value={t}>{t}</option>)
-                    : ['DB', 'WEB/WAS', 'OS', '네트워크', '보안', '클라우드', '기타'].map((t) => <option key={t} value={t}>{t}</option>)
-                  }
-                  {/* 기존 값이 목록에 없을 경우 유지 */}
-                  {form.service_type && !serviceTypes.includes(form.service_type) && (
-                    <option value={form.service_type}>{form.service_type}</option>
-                  )}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">제품명 *</label>
-                <select name="product_type" value={form.product_type} onChange={handleChange} required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
-                  <option value="">선택하세요</option>
-                  {availableProducts.length > 0
-                    ? availableProducts.map((p) => (
-                        <option key={p.product_id} value={p.product_name}>{p.product_name}</option>
-                      ))
-                    : null
-                  }
-                  {/* 기존 값이 목록에 없을 경우 유지 */}
-                  {form.product_type && !availableProducts.some(p => p.product_name === form.product_type) && (
-                    <option value={form.product_type}>{form.product_type}</option>
-                  )}
-                </select>
-              </div>
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">제품 버전 *</label>
-                <input type="text" name="product_version" value={form.product_version} onChange={handleChange} required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700">제품 정보 * <span className="text-xs text-gray-400 font-normal">(여러 제품 등록 가능)</span></label>
+                  <button type="button" onClick={addProduct}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                    </svg>
+                    제품 추가
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {products.map((product, idx) => {
+                    const productList = product.service_type ? (productsByType[product.service_type] || []) : [];
+                    return (
+                      <div key={idx} className="flex flex-col sm:flex-row gap-2 p-2 bg-gray-50 border border-gray-200 rounded-lg">
+                        <select
+                          value={product.service_type}
+                          onChange={(e) => updateProduct(idx, 'service_type', e.target.value)}
+                          required
+                          className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+                        >
+                          <option value="">서비스 유형</option>
+                          {serviceTypes.length > 0
+                            ? serviceTypes.map((t) => <option key={t} value={t}>{t}</option>)
+                            : ['DB', 'WEB/WAS', 'OS', '네트워크', '보안', '클라우드', '기타'].map((t) => <option key={t} value={t}>{t}</option>)
+                          }
+                          {product.service_type && !serviceTypes.includes(product.service_type) && (
+                            <option value={product.service_type}>{product.service_type}</option>
+                          )}
+                        </select>
+                        <select
+                          value={product.product_type}
+                          onChange={(e) => updateProduct(idx, 'product_type', e.target.value)}
+                          required
+                          disabled={!product.service_type}
+                          className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white disabled:bg-gray-100"
+                        >
+                          <option value="">제품명</option>
+                          {productList.map((p) => <option key={p.product_id} value={p.product_name}>{p.product_name}</option>)}
+                          {product.product_type && !productList.some(p => p.product_name === product.product_type) && (
+                            <option value={product.product_type}>{product.product_type}</option>
+                          )}
+                        </select>
+                        <input
+                          type="text"
+                          value={product.product_version}
+                          onChange={(e) => updateProduct(idx, 'product_version', e.target.value)}
+                          placeholder="버전 (예: 19c, 7 FS07)"
+                          required
+                          className="flex-1 min-w-0 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeProduct(idx)}
+                          disabled={products.length <= 1}
+                          className="shrink-0 p-2 text-red-500 hover:bg-red-50 rounded-lg disabled:text-gray-300 disabled:hover:bg-transparent disabled:cursor-not-allowed"
+                          title={products.length <= 1 ? '최소 1개의 제품이 필요합니다' : '제품 삭제'}
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
@@ -592,6 +660,16 @@ export default function WorkLogEditPage() {
                   onChange={(e) => setContactModalDraft((prev) => ({ ...prev, name: e.target.value }))}
                   placeholder="홍길동"
                   autoFocus
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">소속 회사</label>
+                <input
+                  type="text"
+                  value={contactModalDraft.company || ''}
+                  onChange={(e) => setContactModalDraft((prev) => ({ ...prev, company: e.target.value }))}
+                  placeholder="요청자 소속 회사명 (선택)"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>

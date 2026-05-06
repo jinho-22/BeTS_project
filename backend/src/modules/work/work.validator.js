@@ -9,6 +9,13 @@ const incidentSchema = Joi.object({
   is_recurrence: Joi.string().valid('Y', 'N').default('N'),
 });
 
+// 작업에 포함되는 제품 1건 스키마 (서비스 유형/제품명/버전)
+const productSchema = Joi.object({
+  service_type: Joi.string().max(50).required(),
+  product_type: Joi.string().max(50).required(),
+  product_version: Joi.string().max(50).required(),
+});
+
 const createWorkLogSchema = {
   body: Joi.object({
     project_id: Joi.number().integer().required(),
@@ -20,14 +27,16 @@ const createWorkLogSchema = {
       Joi.string().allow(null, ''),
     ).optional(),
     support_type: Joi.string().max(50).required(),
-    service_type: Joi.string().max(50).required(),
-    product_type: Joi.string().max(50).required(),
-    product_version: Joi.string().max(50).required(),
+    // 단일 제품 (레거시 호환) 또는 products 배열 중 하나는 필수
+    service_type: Joi.string().max(50),
+    product_type: Joi.string().max(50),
+    product_version: Joi.string().max(50),
+    products: Joi.array().items(productSchema).min(1),
     title: Joi.string().max(200).required(),
     contact_id: Joi.number().integer().required(),
     details: Joi.string().required(),
     incident: incidentSchema.optional().allow(null),
-  }),
+  }).or('products', 'product_type'),
 };
 
 const updateWorkLogSchema = {
@@ -44,6 +53,7 @@ const updateWorkLogSchema = {
     service_type: Joi.string().max(50),
     product_type: Joi.string().max(50),
     product_version: Joi.string().max(50),
+    products: Joi.array().items(productSchema).min(1),
     title: Joi.string().max(200),
     contact_id: Joi.number().integer(),
     details: Joi.string(),
