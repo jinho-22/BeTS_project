@@ -226,10 +226,19 @@ export default function WorkLogListPage() {
 
               {/* 데스크톱: 테이블 레이아웃 */}
               <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm table-fixed min-w-[960px]">
+                  <colgroup>
+                    <col className="w-20" />        {/* No */}
+                    <col className="w-[28%]" />     {/* 제목 */}
+                    <col className="w-32" />        {/* 작업유형 */}
+                    <col className="w-40" />        {/* 제품 */}
+                    <col className="w-[16%]" />     {/* 고객사 */}
+                    <col className="w-[18%]" />     {/* 프로젝트 */}
+                    <col className="w-24" />        {/* 엔지니어 */}
+                  </colgroup>
                   <thead>
                     <tr className="border-b border-gray-200 bg-gray-50">
-                      <th className="text-left py-3 px-4 font-medium text-gray-500 w-12">No</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-500">No</th>
                       <th className="text-left py-3 px-4 font-medium text-gray-500">제목</th>
                       <th className="text-left py-3 px-4 font-medium text-gray-500">작업유형</th>
                       <th className="text-left py-3 px-4 font-medium text-gray-500">제품</th>
@@ -243,32 +252,47 @@ export default function WorkLogListPage() {
                       <tr key={log.log_id}
                         className="hover:bg-blue-50 cursor-pointer transition-colors"
                         onClick={() => navigate(`/work/${log.log_id}`)}>
-                        <td className="py-3 px-4 text-gray-400">{log.log_id}</td>
-                        <td className="py-3 px-4">
-                          <span className="font-medium">{log.title || '-'}</span>
+                        <td className="py-3 px-4 text-gray-400 truncate">{log.log_id}</td>
+                        <td className="py-3 px-4 min-w-0">
+                          <p className="font-medium truncate" title={log.title || ''}>{log.title || '-'}</p>
                           <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-gray-400 text-xs">{new Date(log.work_start).toLocaleDateString('ko-KR')}</span>
+                            <span className="text-gray-400 text-xs whitespace-nowrap">{new Date(log.work_start).toLocaleDateString('ko-KR')}</span>
                             <StatusBadge status={log.status} />
                           </div>
                         </td>
-                        <td className="py-3 px-4">
-                          {log.work_type}
-                          {log.sub_work_type && <span className="text-gray-400 text-xs ml-1">+ {log.sub_work_type}</span>}
-                          {log.incident && <Icon name="alert" size={12} className="ml-1 text-red-500 inline-block" />}
+                        <td className="py-3 px-4 min-w-0">
+                          <div className="truncate" title={`${log.work_type}${log.sub_work_type ? ' + ' + log.sub_work_type : ''}`}>
+                            {log.work_type}
+                            {log.sub_work_type && <span className="text-gray-400 text-xs ml-1">+ {log.sub_work_type}</span>}
+                            {log.incident && <Icon name="alert" size={12} className="ml-1 text-red-500 inline-block" />}
+                          </div>
                         </td>
-                        <td className="py-3 px-4 text-gray-500 text-xs">
+                        <td className="py-3 px-4 text-gray-500 text-xs min-w-0">
                           {log.products?.length > 1 ? (
                             <>
-                              {log.products[0].product_type}<br />
+                              <p className="truncate" title={log.products[0].product_type}>{log.products[0].product_type}</p>
                               <span className="text-gray-400">외 {log.products.length - 1}건</span>
                             </>
                           ) : (
-                            <>{log.products?.[0]?.product_type || log.product_type}<br />{log.products?.[0]?.product_version || log.product_version}</>
+                            <>
+                              <p className="truncate" title={log.products?.[0]?.product_type || log.product_type}>
+                                {log.products?.[0]?.product_type || log.product_type}
+                              </p>
+                              <p className="truncate text-gray-400" title={log.products?.[0]?.product_version || log.product_version}>
+                                {log.products?.[0]?.product_version || log.product_version}
+                              </p>
+                            </>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-sm">{log.project?.client?.client_name || '-'}</td>
-                        <td className="py-3 px-4 text-sm">{log.project?.project_name || '-'}</td>
-                        <td className="py-3 px-4 text-sm">{log.user?.name || '-'}</td>
+                        <td className="py-3 px-4 text-sm truncate" title={log.project?.client?.client_name || ''}>
+                          {log.project?.client?.client_name || '-'}
+                        </td>
+                        <td className="py-3 px-4 text-sm truncate" title={log.project?.project_name || ''}>
+                          {log.project?.project_name || '-'}
+                        </td>
+                        <td className="py-3 px-4 text-sm truncate" title={log.user?.name || ''}>
+                          {log.user?.name || '-'}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
