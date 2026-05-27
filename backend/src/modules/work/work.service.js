@@ -2,7 +2,7 @@ const { Op } = require('sequelize');
 const sequelize = require('../../config/database');
 const AppError = require('../../shared/utils/AppError');
 const {
-  WorkLog, Incident, FileUpload, User, Project, Client, ManagerContact, Department, WorkLogComment, WorkLogProduct, Notification,
+  WorkLog, Incident, FileUpload, User, Project, Client, ManagerContact, Department, WorkLogComment, WorkLogProduct, WorkLogEngineer, Notification,
 } = require('../../models');
 
 // 장애 관련 작업 유형
@@ -102,6 +102,12 @@ class WorkService {
       // products 키는 work_log 컬럼이 아니므로 제거
       delete workData.products;
 
+      // 추가 엔지니어 배열 분리 (작성자 본인 제거 + 중복 제거)
+      const engineerIds = Array.isArray(workData.engineers)
+        ? [...new Set(workData.engineers.filter((id) => Number.isInteger(id) && id !== userId))]
+        : [];
+      delete workData.engineers;
+
       // 1. 장애 관련 작업 유형 검증 (주 유형 또는 부 유형에 장애지원 포함 시)
       const allTypes = [workData.work_type, ...(workData.sub_work_type || '').split(',')].filter(Boolean);
       const hasIncident = allTypes.some(t => INCIDENT_WORK_TYPES.includes(t));
@@ -128,6 +134,14 @@ class WorkService {
         productsArr.map((p) => ({ ...p, log_id: workLog.log_id })),
         { transaction }
       );
+
+      // 3-2. WorkLogEngineer (추가 엔지니어) 생성
+      if (engineerIds.length > 0) {
+        await WorkLogEngineer.bulkCreate(
+          engineerIds.map((uid) => ({ log_id: workLog.log_id, user_id: uid })),
+          { transaction }
+        );
+      }
 
       // 4. 장애 내역 생성 (장애 관련 작업일 경우)
       let incident = null;
@@ -232,6 +246,10 @@ class WorkService {
         incidentInclude,
         { model: FileUpload, as: 'files' },
         productInclude,
+        {
+          model: WorkLogEngineer, as: 'engineers',
+          include: [{ model: User, as: 'user', attributes: ['user_id', 'name', 'position'] }],
+        },
       ],
       distinct: true,
     });
@@ -256,6 +274,10 @@ class WorkService {
         { model: Incident, as: 'incident' },
         { model: FileUpload, as: 'files' },
         { model: WorkLogProduct, as: 'products' },
+        {
+          model: WorkLogEngineer, as: 'engineers',
+          include: [{ model: User, as: 'user', attributes: ['user_id', 'name', 'position', 'dept_id'], include: [{ model: Department, as: 'department', attributes: ['dept_id', 'dept_name'] }] }],
+        },
         {
           model: WorkLogComment, as: 'comments',
           include: [{ model: User, as: 'author', attributes: ['user_id', 'name'] }],
@@ -313,6 +335,14 @@ class WorkService {
       }
       delete workData.products;
 
+      // 추가 엔지니어 배열: undefined면 변경 없음, 배열이면 통째로 교체
+      const engineersInput = workData.engineers;
+      const hasEngineersUpdate = Array.isArray(engineersInput);
+      const engineerIds = hasEngineersUpdate
+        ? [...new Set(engineersInput.filter((id) => Number.isInteger(id) && id !== workLog.user_id))]
+        : null;
+      delete workData.engineers;
+
       // 1. 장애 관련 작업 유형 검증 (주 유형 또는 부 유형에 장애지원 포함 시)
       const workType = workData.work_type || workLog.work_type;
       const subTypes = (workData.sub_work_type || workLog.sub_work_type || '').split(',').filter(Boolean);
@@ -334,6 +364,17 @@ class WorkService {
           productsArr.map((p) => ({ ...p, log_id: logId })),
           { transaction }
         );
+      }
+
+      // 2-2. 추가 엔지니어 갱신: 기존 삭제 후 재생성
+      if (hasEngineersUpdate) {
+        await WorkLogEngineer.destroy({ where: { log_id: logId }, transaction });
+        if (engineerIds.length > 0) {
+          await WorkLogEngineer.bulkCreate(
+            engineerIds.map((uid) => ({ log_id: logId, user_id: uid })),
+            { transaction }
+          );
+        }
       }
 
       // 3. 장애 내역 수정
@@ -655,6 +696,7 @@ class WorkService {
     const queryOpts = { replacements, type: sequelize.QueryTypes.SELECT };
 
     // ── 2. 엔지니어별 통계 (TIMESTAMPDIFF 등 MariaDB 함수 사용 → Raw SQL + 파라미터화)
+    // 작성자 + 추가 엔지니어를 모두 합산 (UNION ALL participants)
     const byEngineerRaw = await sequelize.query(`
       SELECT
         u.user_id, u.name as user_name, u.position,
@@ -671,8 +713,13 @@ class WorkService {
         ROUND(SUM(CASE WHEN w.work_type = '기술지원' THEN TIMESTAMPDIFF(MINUTE, w.work_start, w.work_end) ELSE 0 END) / 60, 1) as tech_support_hours,
         ROUND(SUM(CASE WHEN w.work_type = '프로젝트 지원' THEN TIMESTAMPDIFF(MINUTE, w.work_start, w.work_end) ELSE 0 END) / 60, 1) as project_support_hours,
         ROUND(SUM(CASE WHEN w.work_type = '기타' THEN TIMESTAMPDIFF(MINUTE, w.work_start, w.work_end) ELSE 0 END) / 60, 1) as etc_work_hours
-      FROM work_log w
-      JOIN users u ON w.user_id = u.user_id
+      FROM (
+        SELECT log_id, user_id FROM work_log
+        UNION ALL
+        SELECT log_id, user_id FROM work_log_engineers
+      ) p
+      JOIN work_log w ON p.log_id = w.log_id
+      JOIN users u ON p.user_id = u.user_id
       LEFT JOIN departments d ON u.dept_id = d.dept_id
       WHERE 1=1 ${dateCondition}
       GROUP BY u.user_id, u.name, u.position, d.dept_name
@@ -780,7 +827,7 @@ class WorkService {
       project_support: toNum(r.project_support),
     }));
 
-    // ── 6. 부서별 통계 ──────────────────
+    // ── 6. 부서별 통계 (작성자 + 추가 엔지니어 모두 합산) ──────────────────
     const byDepartmentRaw = await sequelize.query(`
       SELECT
         d.dept_id, d.dept_name,
@@ -796,9 +843,14 @@ class WorkService {
         ROUND(SUM(CASE WHEN w.work_type = '기술지원' THEN TIMESTAMPDIFF(MINUTE, w.work_start, w.work_end) ELSE 0 END) / 60, 1) as tech_support_hours,
         ROUND(SUM(CASE WHEN w.work_type = '프로젝트 지원' THEN TIMESTAMPDIFF(MINUTE, w.work_start, w.work_end) ELSE 0 END) / 60, 1) as project_support_hours,
         ROUND(SUM(CASE WHEN w.work_type = '기타' THEN TIMESTAMPDIFF(MINUTE, w.work_start, w.work_end) ELSE 0 END) / 60, 1) as etc_work_hours,
-        COUNT(DISTINCT w.user_id) as engineer_count
-      FROM work_log w
-      JOIN users u ON w.user_id = u.user_id
+        COUNT(DISTINCT p.user_id) as engineer_count
+      FROM (
+        SELECT log_id, user_id FROM work_log
+        UNION ALL
+        SELECT log_id, user_id FROM work_log_engineers
+      ) p
+      JOIN work_log w ON p.log_id = w.log_id
+      JOIN users u ON p.user_id = u.user_id
       JOIN departments d ON u.dept_id = d.dept_id
       WHERE 1=1 ${dateCondition}
       GROUP BY d.dept_id, d.dept_name
@@ -851,8 +903,13 @@ class WorkService {
         ROUND(SUM(CASE WHEN DAYOFWEEK(w.work_start) IN (1, 7)
           THEN TIMESTAMPDIFF(MINUTE, w.work_start, w.work_end) / 60 ELSE 0 END), 1) as weekend_hours,
         ROUND(SUM(TIMESTAMPDIFF(MINUTE, w.work_start, w.work_end) / 60), 1) as total_hours
-      FROM work_log w
-      JOIN users u ON w.user_id = u.user_id
+      FROM (
+        SELECT log_id, user_id FROM work_log
+        UNION ALL
+        SELECT log_id, user_id FROM work_log_engineers
+      ) part
+      JOIN work_log w ON part.log_id = w.log_id
+      JOIN users u ON part.user_id = u.user_id
       LEFT JOIN departments d ON u.dept_id = d.dept_id
       WHERE 1=1 ${dateCondition}
       GROUP BY u.user_id, u.name, u.position, d.dept_name

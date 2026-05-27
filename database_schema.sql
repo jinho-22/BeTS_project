@@ -11,6 +11,7 @@
 -- ============================================================
 -- 기존 테이블 삭제 (순서 주의: FK 의존성 역순)
 -- ============================================================
+DROP TABLE IF EXISTS `work_log_engineers`;
 DROP TABLE IF EXISTS `work_log_products`;
 DROP TABLE IF EXISTS `work_log_comments`;
 DROP TABLE IF EXISTS `file_uploads`;
@@ -215,6 +216,21 @@ CREATE TABLE `work_log_products` (
   KEY `fk_wlp_worklog` (`log_id`),
   CONSTRAINT `fk_wlp_worklog` FOREIGN KEY (`log_id`) REFERENCES `work_log` (`log_id`) ON UPDATE CASCADE ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='작업 로그 다중 제품';
+
+-- ============================================================
+-- 12. 작업 로그 참여 엔지니어 테이블 (작성자 외 추가 엔지니어)
+-- ============================================================
+CREATE TABLE `work_log_engineers` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `log_id` INT NOT NULL COMMENT '작업 로그 ID',
+  `user_id` INT NOT NULL COMMENT '추가 엔지니어 ID',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uniq_log_user` (`log_id`, `user_id`),
+  KEY `fk_wle_log` (`log_id`),
+  KEY `fk_wle_user` (`user_id`),
+  CONSTRAINT `fk_wle_log` FOREIGN KEY (`log_id`) REFERENCES `work_log` (`log_id`) ON UPDATE CASCADE ON DELETE CASCADE,
+  CONSTRAINT `fk_wle_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON UPDATE CASCADE ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='작업 로그 추가 엔지니어';
 
 -- ============================================================
 -- 초기 데이터 (기본 부서 + 관리자 계정)

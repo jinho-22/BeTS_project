@@ -187,6 +187,25 @@ export default function WorkLogDetailPage() {
             <InfoItem label="요청자" value={log.contact ? `${log.contact.name}${log.contact.company ? ` [${log.contact.company}]` : ''}${log.contact.phone ? ` (${log.contact.phone})` : ''}` : '-'} />
             <InfoItem label="작업 기간" value={`${formatDate(log.work_start)} ~ ${formatDate(log.work_end)}`} />
           </dl>
+
+          {/* 참여 엔지니어 (작성자 외 추가) */}
+          {Array.isArray(log.engineers) && log.engineers.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <p className="text-sm text-gray-500 mb-2">참여 엔지니어 ({log.engineers.length}명)</p>
+              <div className="flex flex-wrap gap-2">
+                {log.engineers.map((e) => (
+                  <span key={e.id} className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-full text-sm">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    {e.user?.name}
+                    {e.user?.position && <span className="text-indigo-400 text-xs">({e.user.position})</span>}
+                    {e.user?.department?.dept_name && <span className="text-indigo-400 text-xs">· {e.user.department.dept_name}</span>}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 작업 분류 */}
