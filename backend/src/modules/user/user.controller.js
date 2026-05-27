@@ -66,6 +66,25 @@ class UserController {
     }
   }
 
+  /**
+   * 활성 엔지니어 목록 조회 (인증된 사용자 누구나 호출 가능)
+   * 작업 등록 시 추가 엔지니어 선택용
+   * - dept_id 지정 시 해당 부서만
+   * - exclude_user_id 지정 시 해당 사용자 제외 (작성자 본인 제외용)
+   */
+  async getEngineers(req, res, next) {
+    try {
+      const { dept_id, exclude_user_id } = req.query;
+      const engineers = await userService.findActiveEngineers({
+        dept_id: dept_id ? parseInt(dept_id, 10) : undefined,
+        exclude_user_id: exclude_user_id ? parseInt(exclude_user_id, 10) : undefined,
+      });
+      sendSuccess(res, engineers, '엔지니어 목록 조회 성공');
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async createDepartment(req, res, next) {
     try {
       const department = await userService.createDepartment(req.body);

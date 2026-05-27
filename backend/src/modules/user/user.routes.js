@@ -12,6 +12,9 @@ router.use(authenticate);
 // GET /api/users/departments - 부서 목록
 router.get('/departments', userController.getDepartments);
 
+// GET /api/users/engineers - 활성 엔지니어 목록 (작업 등록 시 선택용, 인증된 사용자 누구나)
+router.get('/engineers', userController.getEngineers);
+
 // POST /api/users/departments - 부서 생성 (관리자 전용)
 router.post('/departments', authorize('admin'), validate(createDepartmentSchema), userController.createDepartment);
 

@@ -34,6 +34,10 @@ export default function WorkLogCreatePage() {
     { service_type: '', product_type: '', product_version: '' },
   ]);
 
+  // 추가 엔지니어 (작성자 외)
+  const [extraEngineers, setExtraEngineers] = useState([]); // user_id 배열
+  const [includeAllDepts, setIncludeAllDepts] = useState(false);
+
   const addProduct = () => {
     setProducts((prev) => [...prev, { service_type: '', product_type: '', product_version: '' }]);
   };
@@ -101,6 +105,18 @@ export default function WorkLogCreatePage() {
       const { data } = await api.get('/products');
       return data.data;
     },
+  });
+
+  // 추가 엔지니어 선택용: 같은 부서 또는 전체
+  const { data: engineersData } = useQuery({
+    queryKey: ['engineers', user?.user_id, user?.dept_id, includeAllDepts],
+    queryFn: async () => {
+      const params = { exclude_user_id: user?.user_id };
+      if (!includeAllDepts && user?.dept_id) params.dept_id = user.dept_id;
+      const { data } = await api.get('/users/engineers', { params });
+      return data.data;
+    },
+    enabled: !!user?.user_id,
   });
 
   // 제품 유형별 그룹핑
@@ -241,6 +257,7 @@ export default function WorkLogCreatePage() {
         contact_id: contactId,
         sub_work_type: form.sub_work_type.length > 0 ? form.sub_work_type : null,
         products: cleanProducts,
+        engineers: extraEngineers.map((id) => parseInt(id, 10)).filter((id) => Number.isInteger(id)),
       };
 
       if (isIncidentType) {
@@ -476,6 +493,70 @@ export default function WorkLogCreatePage() {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* 참여 엔지니어 (작성자 외 추가) */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+              <h3 className="text-lg font-semibold text-gray-800">
+                참여 엔지니어
+                <span className="ml-2 text-xs text-gray-400 font-normal">(작성자 외 함께 작업한 엔지니어)</span>
+              </h3>
+              <label className="inline-flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={includeAllDepts}
+                  onChange={(e) => setIncludeAllDepts(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                다른 부서 포함
+              </label>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">엔지니어 선택</label>
+              <select
+                multiple
+                value={extraEngineers}
+                onChange={(e) => {
+                  const opts = Array.from(e.target.selectedOptions).map((o) => o.value);
+                  setExtraEngineers(opts);
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm min-h-[120px]"
+              >
+                {engineersData?.map((e) => (
+                  <option key={e.user_id} value={e.user_id}>
+                    {e.name} ({e.position}) - {e.department?.dept_name || '부서 없음'}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400 mt-1">
+                Ctrl(또는 Cmd) 또는 Shift를 누른 채 클릭하여 여러 명 선택 가능 · 선택된 엔지니어의 작업 시간도 통계에 합산됩니다
+              </p>
+            </div>
+
+            {extraEngineers.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {extraEngineers.map((uid) => {
+                  const eng = engineersData?.find((e) => String(e.user_id) === String(uid));
+                  if (!eng) return null;
+                  return (
+                    <span key={uid} className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200 text-blue-700 rounded-full text-sm">
+                      {eng.name}
+                      <button
+                        type="button"
+                        onClick={() => setExtraEngineers((prev) => prev.filter((id) => String(id) !== String(uid)))}
+                        className="hover:bg-blue-100 rounded-full p-0.5"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* 장애 상세 (장애 관련 작업 유형일 때만 표시) */}

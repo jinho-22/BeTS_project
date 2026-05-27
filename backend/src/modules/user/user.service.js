@@ -78,6 +78,25 @@ class UserService {
   }
 
   /**
+   * 활성 엔지니어 목록 (작업 내역 추가 엔지니어 선택용)
+   * - dept_id 있으면 해당 부서만
+   * - exclude_user_id 있으면 본인 제외
+   */
+  async findActiveEngineers({ dept_id, exclude_user_id }) {
+    const { Op } = require('sequelize');
+    const where = { is_active: true };
+    if (dept_id) where.dept_id = dept_id;
+    if (exclude_user_id) where.user_id = { [Op.ne]: exclude_user_id };
+
+    return User.findAll({
+      where,
+      attributes: ['user_id', 'name', 'email', 'position', 'dept_id', 'role'],
+      include: [{ model: Department, as: 'department', attributes: ['dept_id', 'dept_name'] }],
+      order: [['dept_id', 'ASC'], ['name', 'ASC']],
+    });
+  }
+
+  /**
    * 부서 생성
    */
   async createDepartment(deptData) {
