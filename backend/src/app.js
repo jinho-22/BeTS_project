@@ -20,6 +20,9 @@ const setupRoutes = require('./modules/setup/setup.routes');
 
 const app = express();
 
+// nginx 리버스 프록시 1단 신뢰: req.secure(X-Forwarded-Proto), req.ip(X-Forwarded-For) 반영
+app.set('trust proxy', 1);
+
 // ════════════════════════════════════════
 // 글로벌 미들웨어
 // ════════════════════════════════════════

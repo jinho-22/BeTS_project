@@ -4,12 +4,14 @@ const { sendSuccess } = require('../../shared/utils/response');
 
 const isProduction = env.nodeEnv === 'production';
 
-const COOKIE_OPTIONS = {
+// Secure는 실제 요청 프로토콜 기준 (HTTP 배포 시 브라우저가 Secure 쿠키를 거부하므로)
+// nginx 뒤에서는 trust proxy + X-Forwarded-Proto로 req.secure가 결정됨
+const cookieOptions = (req) => ({
   httpOnly: true,
-  secure: isProduction,
+  secure: req.secure,
   sameSite: isProduction ? 'strict' : 'lax',
   path: '/',
-};
+});
 
 class AuthController {
   async login(req, res, next) {
@@ -19,11 +21,11 @@ class AuthController {
 
       // HttpOnly 쿠키로 토큰 설정
       res.cookie('accessToken', result.accessToken, {
-        ...COOKIE_OPTIONS,
+        ...cookieOptions(req),
         maxAge: 60 * 60 * 1000, // 1h
       });
       res.cookie('refreshToken', result.refreshToken, {
-        ...COOKIE_OPTIONS,
+        ...cookieOptions(req),
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7d
       });
 
@@ -47,7 +49,7 @@ class AuthController {
       const result = await authService.refreshAccessToken(refreshToken);
 
       res.cookie('accessToken', result.accessToken, {
-        ...COOKIE_OPTIONS,
+        ...cookieOptions(req),
         maxAge: 60 * 60 * 1000,
       });
 
@@ -58,8 +60,8 @@ class AuthController {
   }
 
   async logout(req, res) {
-    res.clearCookie('accessToken', { ...COOKIE_OPTIONS });
-    res.clearCookie('refreshToken', { ...COOKIE_OPTIONS });
+    res.clearCookie('accessToken', cookieOptions(req));
+    res.clearCookie('refreshToken', cookieOptions(req));
     sendSuccess(res, null, '로그아웃 성공');
   }
 
